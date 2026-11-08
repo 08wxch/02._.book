@@ -3614,3 +3614,8 @@ try:
 finally:
     b.close()
 PY
+
+/* ป้ายสถานะไม่ให้ตัดบรรทัด */
+.seat-badge, .chip, .badge { white-space: nowrap; }
+.book-table td { vertical-align: middle; }
+.book-table .seat-badge { display: inline-block; }
