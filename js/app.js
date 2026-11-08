@@ -62,12 +62,17 @@ function renderHeader() {
 
   host.innerHTML = `
   <div class="header-inner">
+    <button class="nav-toggle" id="nav-toggle" type="button" aria-label="เปิดเมนู" aria-expanded="false">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </button>
     <a class="brand brand--default" href="#/">
       <span class="brand-mark brand-mark--sm"><img src="./assets/brand/logo-circle.png" alt=""></span>
       <span class="brand__words"><span class="brand__name">02._.book</span>
-      <span class="brand__sub">จองคอร์สและดูคะแนน</span></span>
+      <span class="brand__sub">ติดตามผลการเรียนออนไลน์</span></span>
     </a>
-    <nav class="main-nav">${links.join('')}</nav>
+    <nav class="main-nav" id="main-nav">${links.join('')}</nav>
     <div class="header-actions">
       ${me
         ? `<button class="user-chip" id="profile-btn" title="ข้อมูลของฉัน">${avatarHtml(me, 30)}
@@ -78,6 +83,19 @@ function renderHeader() {
   </div>`;
 
   host.querySelector('#profile-btn')?.addEventListener('click', openProfile);
+
+  const toggle = host.querySelector('#nav-toggle');
+  const nav = host.querySelector('#main-nav');
+  toggle?.addEventListener('click', () => {
+    const open = nav.classList.toggle('is-open');
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    host.classList.toggle('is-nav-open', open);
+  });
+  nav?.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => {
+    nav.classList.remove('is-open');
+    toggle?.setAttribute('aria-expanded', 'false');
+    host.classList.remove('is-nav-open');
+  }));
 
   host.querySelector('[data-signout]')?.addEventListener('click', async () => {
     const ok = await confirmDialog({ title: 'ออกจากระบบ', message: 'ต้องการออกจากระบบใช่ไหม?', confirmLabel: 'ออกจากระบบ' });

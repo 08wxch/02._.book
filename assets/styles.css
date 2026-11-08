@@ -3759,3 +3759,46 @@ body[data-shell="console"] .site-header { display: none; }
 .chart-card .line-chart { max-width: 560px; margin: 0 auto; }
 .dot-link { cursor: pointer; }
 .dot-link:hover .dot { r: 8; fill: var(--ink); }
+
+/* ══ แถบบนสีเข้ม + เมนูมือถือ ══════════════════════════ */
+.site-header {
+  background: #14120f;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+  backdrop-filter: none;
+}
+.site-header.is-scrolled { box-shadow: 0 8px 22px rgba(0, 0, 0, .28); }
+.site-header .brand__name { color: #fff; }
+.site-header .brand__sub { color: rgba(255, 255, 255, .62); }
+.site-header .brand-mark { background: #fff; box-shadow: none; }
+.nav-link { color: rgba(255, 255, 255, .74); }
+.nav-link:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+.nav-link.is-active { background: #fff; color: #14120f; }
+.user-chip {
+  background: rgba(255, 255, 255, .06);
+  border-color: rgba(255, 255, 255, .18);
+  color: #fff;
+}
+.user-chip:hover { background: rgba(255, 255, 255, .12); }
+.user-chip .tiny.dim { color: rgba(255, 255, 255, .6) !important; }
+.site-header .btn-primary { --btn-bg: #fff; --btn-fg: #14120f; }
+
+.nav-toggle {
+  display: none; width: 40px; height: 40px; border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .18); background: transparent;
+  color: #fff; cursor: pointer; align-items: center; justify-content: center;
+}
+.nav-toggle:hover { background: rgba(255, 255, 255, .12); }
+
+@media (max-width: 900px) {
+  .nav-toggle { display: inline-flex; }
+  .main-nav {
+    display: none; position: absolute; left: 12px; right: 12px; top: calc(100% + 6px);
+    flex-direction: column; gap: 2px; padding: 8px;
+    background: #14120f; border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: 14px; box-shadow: 0 18px 36px rgba(0, 0, 0, .35); z-index: 60;
+  }
+  .main-nav.is-open { display: flex; }
+  .main-nav .nav-link { padding: 11px 14px; border-radius: 9px; font-size: 14.5px; }
+  .header-inner { position: relative; }
+  .user-chip__text { display: none; }
+}
