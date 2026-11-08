@@ -10,8 +10,14 @@ export async function renderCheckout(orderId, ctx) {
     return `<div class="wrap" style="padding-top:40px"><div class="empty-soft"><b>ไม่พบคำสั่งซื้อนี้</b>
       <a class="btn btn-ghost btn-sm" href="#/account">ไปที่บัญชีของฉัน</a></div></div>`;
   }
-  if (ctx.me?.role === 'parent' && order.user_id !== ctx.me.user_id) {
-    return `<div class="wrap" style="padding-top:40px"><div class="empty-soft"><b>ไม่มีสิทธิ์ดูคำสั่งซื้อนี้</b></div></div>`;
+  const isMine = Boolean(ctx.me && order.user_id === ctx.me.user_id);
+  if (!isMine) {
+    return `<div class="wrap" style="padding-top:40px;max-width:560px"><div class="empty-soft">
+      <b>คำสั่งซื้อนี้ไม่ใช่ของบัญชีคุณ</b>
+      <p class="tiny dim" style="margin:0 0 12px">ผู้ปกครองเจ้าของคำสั่งซื้อเป็นผู้อัปโหลดสลิปและยืนยันการจ่ายเอง
+        ${ctx.me?.role === 'owner' ? '— ถ้าต้องการตรวจสลิป ไปที่หลังบ้าน → รอยืนยัน' : ''}</p>
+      ${ctx.me?.role === 'owner' ? '<a class="btn btn-primary btn-sm" href="#/admin?tab=orders">ไปที่หลังบ้าน</a>' : '<a class="btn btn-ghost btn-sm" href="#/account">กลับหน้าบัญชี</a>'}
+    </div></div>`;
   }
 
   const s = ctx.settings || {};

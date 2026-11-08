@@ -808,3 +808,307 @@ returns jsonb language sql stable security definer set search_path = public as $
 $$;
 
 grant execute on function public.bk_my_coupons() to authenticated;
+
+-- ════════════════════════════════════════════════════════════
+--  PHASE 1: ล็อกอินครูจากข้อมูลสดของ 02._.mock + ความปลอดภัยออเดอร์
+-- ════════════════════════════════════════════════════════════
+alter table public.bk_accounts add column if not exists org_ids text[] not null default '{}';
+
+-- ครู/เจ้าของ: ตรวจรหัสผ่านกับ 02._.mock โดยตรง แล้วเตรียมบัญชีให้พร้อมล็อกอิน
+create or replace function public.bk_teacher_login(p_code text, p_password text)
+returns jsonb language plpgsql security definer set search_path = public, auth, extensions as $$
+declare
+  v_t jsonb;
+  v_email text;
+  v_id uuid;
+  v_role text;
+  v_code text;
+begin
+  select t into v_t
+  from public.app_state s, jsonb_array_elements(coalesce(s.data->'teachers','[]'::jsonb)) t
+  where s.id = 'main'
+    and (lower(t->>'code') = lower(trim(coalesce(p_code,'')))
+         or lower(coalesce(t->>'email','')) = lower(trim(coalesce(p_code,''))))
+  limit 1;
+
+  if v_t is null then raise exception 'ไม่พบรหัสครูนี้ในรายชื่อบุคลากร'; end if;
+  -- รหัสผ่านของครู/เจ้าของอยู่ในตาราง credentials ของ 02._.mock
+  if not exists (
+    select 1 from public.credentials c
+    where c.owner_type = 'teacher'
+      and c.owner_id = coalesce(v_t->>'id','')
+      and c.password = coalesce(p_password,'')
+  ) then
+    raise exception 'รหัสผ่านไม่ถูกต้อง (ใช้รหัสเดียวกับ 02._.mock)';
+  end if;
+
+  v_code := coalesce(v_t->>'code','');
+  v_email := public.bk_teacher_email(v_code);
+  v_role := case when coalesce((v_t->>'isOwner')::boolean,false) then 'owner' else 'teacher' end;
+
+  select id into v_id from auth.users where email = v_email;
+  if v_id is null then
+    v_id := gen_random_uuid();
+    insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+                            raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+                            confirmation_token, recovery_token, email_change, email_change_token_new,
+                            email_change_token_current, phone_change, phone_change_token, is_sso_user, is_anonymous)
+    values (v_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', v_email,
+            crypt(p_password, gen_salt('bf')), now(),
+            '{"provider":"email","providers":["email"]}'::jsonb,
+            jsonb_build_object('full_name', coalesce(v_t->>'name','')), now(), now(),
+            '', '', '', '', '', '', '', false, false);
+    insert into auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at)
+    values (gen_random_uuid(), v_id,
+            jsonb_build_object('sub', v_id::text, 'email', v_email, 'email_verified', true),
+            'email', v_id::text, now(), now(), now()) on conflict do nothing;
+  else
+    -- ให้รหัสผ่านตรงกับ 02._.mock เสมอ (ต้นทางเดียว)
+    update auth.users
+      set encrypted_password = crypt(p_password, gen_salt('bf')),
+          email_confirmed_at = coalesce(email_confirmed_at, now()),
+          updated_at = now()
+      where id = v_id;
+  end if;
+
+  insert into public.bk_accounts (user_id, role, name, email, teacher_code, org_id, org_hint, approved)
+  values (v_id, v_role, coalesce(v_t->>'name',''), v_email, v_code,
+          coalesce(v_t->>'orgId',''), coalesce(v_t->>'school',''), true)
+  on conflict (user_id) do update set
+    name = excluded.name,
+    teacher_code = excluded.teacher_code,
+    org_id = excluded.org_id,
+    org_hint = excluded.org_hint,
+    role = case when excluded.role = 'owner' then 'owner' else public.bk_accounts.role end,
+    updated_at = now();
+
+  return jsonb_build_object('ok', true, 'email', v_email, 'role', v_role);
+end;
+$$;
+
+grant execute on function public.bk_teacher_login(text, text) to anon, authenticated;
+
+-- หน่วยงานของครู: อ่านสดจาก 02._.mock (ย้ายหน่วยงานแล้วตามทันที)
+create or replace function public.bk_org()
+returns text language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select t->>'orgId'
+       from public.app_state s, jsonb_array_elements(coalesce(s.data->'teachers','[]'::jsonb)) t
+      where s.id = 'main' and lower(t->>'code') = lower(a.teacher_code)
+      limit 1),
+    a.org_id)
+  from public.bk_accounts a
+  where a.user_id = auth.uid();
+$$;
+
+-- ออเดอร์: เจ้าของออเดอร์แก้ได้คนเดียว (กันปัญหากดจ่ายแทนลูกค้า)
+drop policy if exists bk_orders_update on public.bk_orders;
+create policy bk_orders_update on public.bk_orders
+  for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop policy if exists bk_orders_delete_own on public.bk_orders;
+create policy bk_orders_delete_own on public.bk_orders
+  for delete using (user_id = auth.uid() or public.bk_is_owner());
+
+create or replace function public.bk_confirm_order(p_id uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+begin
+  if not public.bk_is_owner() then raise exception 'เฉพาะเจ้าของระบบ'; end if;
+  update public.bk_orders
+     set status = 'confirmed', slip_path = '', confirmed_at = now()
+   where id = p_id;
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+create or replace function public.bk_reject_order(p_id uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+begin
+  if not public.bk_is_owner() then raise exception 'เฉพาะเจ้าของระบบ'; end if;
+  update public.bk_orders set status = 'rejected', slip_path = '' where id = p_id;
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+grant execute on function public.bk_confirm_order(uuid) to authenticated;
+grant execute on function public.bk_reject_order(uuid) to authenticated;
+
+-- เจ้าของ/ครู ตั้งรหัสผ่านใหม่ให้ผู้ปกครอง
+create or replace function public.bk_set_parent_password(p_user uuid, p_password text)
+returns jsonb language plpgsql security definer set search_path = public, auth, extensions as $$
+begin
+  if not (public.bk_is_owner() or public.bk_is_teacher()) then raise exception 'ไม่มีสิทธิ์'; end if;
+  if length(coalesce(p_password,'')) < 6 then raise exception 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'; end if;
+  if public.bk_is_teacher() and not public.bk_parent_in_my_org(p_user) then
+    raise exception 'ผู้ปกครองคนนี้ไม่ได้อยู่ในหน่วยงานของคุณ';
+  end if;
+
+  update auth.users
+     set encrypted_password = crypt(p_password, gen_salt('bf')), updated_at = now()
+   where id = p_user;
+
+  update public.bk_accounts
+     set password_plain = p_password, updated_at = now()
+   where user_id = p_user;
+
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+grant execute on function public.bk_set_parent_password(uuid, text) to authenticated;
+
+-- ════════════════════════════════════════════════════════════
+--  PHASE 3: รายชื่อนักเรียน + ผูก/ถอดผู้ปกครอง + ลบผู้ปกครอง
+-- ════════════════════════════════════════════════════════════
+create or replace function public.bk_students_overview()
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  v_state jsonb;
+  v_all boolean := public.bk_is_owner();
+  v_org text := public.bk_org();
+  v_out jsonb := '[]'::jsonb;
+  st jsonb;
+  v_parents jsonb;
+begin
+  if not (public.bk_is_owner() or public.bk_is_teacher()) then raise exception 'ไม่มีสิทธิ์'; end if;
+  select data into v_state from public.app_state where id = 'main';
+  if v_state is null then return '[]'::jsonb; end if;
+
+  for st in select value from jsonb_array_elements(coalesce(v_state->'students','[]'::jsonb)) value loop
+    continue when not v_all and coalesce(st->>'orgId','') <> coalesce(v_org,'');
+
+    select coalesce(jsonb_agg(jsonb_build_object(
+             'link_id', l.id, 'user_id', a.user_id, 'name', coalesce(a.name, a.email),
+             'email', coalesce(a.email,''), 'phone', coalesce(a.phone,''),
+             'line_id', coalesce(a.line_id,''))), '[]'::jsonb)
+      into v_parents
+      from public.bk_parent_students l
+      join public.bk_accounts a on a.user_id = l.user_id
+     where l.student_id = st->>'id';
+
+    v_out := v_out || jsonb_build_array(jsonb_build_object(
+      'id', st->>'id', 'code', st->>'code', 'name', st->>'name',
+      'class', st->>'class', 'orgId', st->>'orgId',
+      'orgName', coalesce((select o->>'name' from jsonb_array_elements(coalesce(v_state->'organizations','[]'::jsonb)) o where o->>'id' = st->>'orgId' limit 1), ''),
+      'parents', v_parents));
+  end loop;
+
+  return v_out;
+end;
+$$;
+
+grant execute on function public.bk_students_overview() to authenticated;
+
+-- ผูกผู้ปกครองเข้ากับนักเรียน (เจ้าของทำได้ทุกหน่วยงาน / ครูเฉพาะหน่วยงานตัวเอง)
+create or replace function public.bk_link_parent_student(p_student_id text, p_user uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  st jsonb;
+  v_org text;
+begin
+  if not (public.bk_is_owner() or public.bk_is_teacher()) then raise exception 'ไม่มีสิทธิ์'; end if;
+
+  select value into st from jsonb_array_elements(
+    (select data->'students' from public.app_state where id='main')
+  ) value where value->>'id' = p_student_id limit 1;
+  if st is null then raise exception 'ไม่พบนักเรียนคนนี้'; end if;
+
+  v_org := coalesce(st->>'orgId','');
+  if public.bk_is_teacher() and v_org <> coalesce(public.bk_org(),'') then
+    raise exception 'นักเรียนคนนี้ไม่ได้อยู่ในหน่วยงานของคุณ';
+  end if;
+
+  insert into public.bk_parent_students (user_id, student_id, student_code, student_name, org_id, created_by)
+  values (p_user, p_student_id, coalesce(st->>'code',''), coalesce(st->>'name',''), v_org, auth.uid())
+  on conflict (user_id, student_id) do nothing;
+
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+grant execute on function public.bk_link_parent_student(text, uuid) to authenticated;
+
+-- รายละเอียดผู้ปกครอง 1 คน (เจ้าของ/ครูในหน่วยงาน)
+create or replace function public.bk_parent_detail(p_user uuid)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  a public.bk_accounts;
+  v_students jsonb;
+  v_paid numeric;
+begin
+  if not (public.bk_is_owner() or public.bk_is_teacher()) then raise exception 'ไม่มีสิทธิ์'; end if;
+  select * into a from public.bk_accounts where user_id = p_user;
+  if a.user_id is null then raise exception 'ไม่พบผู้ปกครองคนนี้'; end if;
+  if public.bk_is_teacher() and not public.bk_parent_in_my_org(p_user) then
+    raise exception 'ผู้ปกครองคนนี้ไม่ได้อยู่ในหน่วยงานของคุณ';
+  end if;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'link_id', l.id, 'student_id', l.student_id, 'student_name', l.student_name,
+           'student_code', l.student_code, 'org_id', l.org_id,
+           'org_name', coalesce((select o->>'name' from public.app_state s,
+              jsonb_array_elements(coalesce(s.data->'organizations','[]'::jsonb)) o
+              where s.id='main' and o->>'id' = l.org_id limit 1), ''))), '[]'::jsonb)
+    into v_students
+    from public.bk_parent_students l where l.user_id = p_user;
+
+  select coalesce(sum(amount),0) into v_paid from public.bk_orders
+   where user_id = p_user and status = 'confirmed';
+
+  return jsonb_build_object(
+    'user_id', a.user_id, 'name', a.name, 'email', a.email, 'phone', a.phone,
+    'line_id', a.line_id, 'password', a.password_plain,
+    'created_at', a.created_at, 'org_ids', a.org_ids,
+    'students', v_students, 'total_paid', v_paid);
+end;
+$$;
+
+grant execute on function public.bk_parent_detail(uuid) to authenticated;
+
+-- ผู้ปกครองเลือกโรงเรียน/หน่วยงานของลูก (ทำได้เองหลังสมัคร)
+create or replace function public.bk_set_my_orgs(p_org_ids text[])
+returns jsonb language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'ต้องเข้าสู่ระบบ'; end if;
+  update public.bk_accounts set org_ids = coalesce(p_org_ids, '{}'), updated_at = now()
+   where user_id = auth.uid();
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+grant execute on function public.bk_set_my_orgs(text[]) to authenticated;
+
+-- ลบผู้ปกครอง (ข้อมูลคอร์ส/การผูกหาย แต่บัญชีนักเรียนไม่หาย)
+create or replace function public.bk_delete_parent(p_user uuid)
+returns jsonb language plpgsql security definer set search_path = public, auth as $$
+begin
+  if not (public.bk_is_owner() or public.bk_is_teacher()) then raise exception 'ไม่มีสิทธิ์'; end if;
+  if public.bk_is_teacher() and not public.bk_parent_in_my_org(p_user) then
+    raise exception 'ผู้ปกครองคนนี้ไม่ได้อยู่ในหน่วยงานของคุณ';
+  end if;
+  if exists (select 1 from public.bk_accounts where user_id = p_user and role in ('owner','teacher')) then
+    raise exception 'ลบบัญชีครู/เจ้าของไม่ได้';
+  end if;
+
+  delete from public.bk_orders where user_id = p_user;
+  delete from public.bk_coupon_claims where user_id = p_user;
+  delete from public.bk_parent_students where user_id = p_user;
+  delete from public.bk_accounts where user_id = p_user;
+  delete from auth.users where id = p_user;
+
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+grant execute on function public.bk_delete_parent(uuid) to authenticated;
+
+-- รายการโรงเรียน/หน่วยงานทั้งหมด (ให้ผู้ปกครองเลือกตอนสมัคร)
+create or replace function public.bk_organizations()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', o->>'id', 'name', o->>'name', 'type', coalesce(o->>'type',''))),
+                  '[]'::jsonb)
+  from public.app_state s, jsonb_array_elements(coalesce(s.data->'organizations','[]'::jsonb)) o
+  where s.id = 'main';
+$$;
+
+grant execute on function public.bk_organizations() to anon, authenticated;

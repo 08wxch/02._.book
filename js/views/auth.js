@@ -1,7 +1,7 @@
 /* ── เข้าสู่ระบบ / สมัคร (ผู้ปกครอง) และล็อกอินครู ──────── */
 
 import { CONFIG } from '../config.js';
-import { toast } from '../ui.js';
+import { closeModal, openModal, toast } from '../ui.js';
 import { e } from '../utils.js';
 
 export async function renderAuth(_arg, ctx) {
@@ -44,7 +44,7 @@ function setupAuth(ctx, next) {
     <div class="field-row"><label>รหัสผ่าน</label>
       <input id="login-pass" type="password" autocomplete="current-password" placeholder="รหัสผ่าน"></div>
     <button class="btn btn-primary btn-block" id="do-login">เข้าสู่ระบบ</button>
-    <p class="hint" style="margin-top:10px">ลืมรหัสผ่าน? ติดต่อ Line : ${e(CONFIG.CONTACT.lineId)} เพื่อให้เจ้าของระบบช่วยตั้งรหัสใหม่</p>`;
+    <p class="hint" style="margin-top:10px">ลืมรหัสผ่าน? ติดต่อ Line : ${e(CONFIG.CONTACT.lineId)} เพื่อรีเซ็ตรหัสผ่านใหม่</p>`;
 
   const signupForm = `
     <div class="field-row"><label>ชื่อ-นามสกุลผู้ปกครอง</label>
@@ -53,10 +53,13 @@ function setupAuth(ctx, next) {
       <input id="su-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com"></div>
     <div class="field-row"><label>รหัสผ่าน (อย่างน้อย 6 ตัวอักษร)</label>
       <input id="su-pass" type="password" autocomplete="new-password" placeholder="ตั้งรหัสผ่าน"></div>
+    <div class="field-row"><label>ยืนยันรหัสผ่านอีกครั้ง</label>
+      <input id="su-pass2" type="password" autocomplete="new-password" placeholder="พิมพ์รหัสผ่านซ้ำ"></div>
     <div class="field-row"><label>เบอร์โทรติดต่อ</label>
       <input id="su-phone" inputmode="tel" placeholder="089-123-4567" maxlength="32"></div>
-    <div class="field-row"><label>LINE ID (ถ้ามี)</label>
-      <input id="su-line" placeholder="line id ของคุณ" maxlength="60"></div>
+    <div class="field-row"><label>LINE ID (จำเป็น)</label>
+      <input id="su-line" placeholder="line id ของคุณ" maxlength="60">
+      <span class="hint">ถ้าแอดไลน์ด้วยเบอร์ ให้กรอกเบอร์ลงมาอีกครั้งในช่องนี้</span></div>
     <button class="btn btn-primary btn-block" id="do-signup">สมัครและเข้าใช้งาน</button>
     <p class="hint" style="margin-top:10px">ไม่ต้องยืนยันอีเมล — สมัครแล้วเข้าใช้งานได้ทันที
       (ภายหลังสามารถเปลี่ยนรหัสผ่านได้)</p>`;
@@ -94,18 +97,22 @@ function setupAuth(ctx, next) {
           name: body.querySelector('#su-name').value.trim(),
           email: body.querySelector('#su-email').value.trim(),
           password: body.querySelector('#su-pass').value,
+          password2: body.querySelector('#su-pass2').value,
           phone: body.querySelector('#su-phone').value.trim(),
           lineId: body.querySelector('#su-line').value.trim(),
         };
         if (!payload.name) { toast('กรอกชื่อผู้ปกครอง', 'error'); return; }
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(payload.email)) { toast('อีเมลไม่ถูกต้อง', 'error'); return; }
         if (payload.password.length < 6) { toast('รหัสผ่านอย่างน้อย 6 ตัวอักษร', 'error'); return; }
+        if (payload.password !== payload.password2) { toast('รหัสผ่านทั้งสองช่องไม่ตรงกัน', 'error'); return; }
         if (!payload.phone) { toast('กรอกเบอร์โทรเพื่อให้ครูติดต่อกลับ', 'error'); return; }
+        if (!payload.lineId) { toast('กรอก LINE ID (ถ้าแอดด้วยเบอร์ ให้กรอกเบอร์)', 'error'); return; }
         const btn = body.querySelector('#do-signup');
         btn.disabled = true; btn.textContent = 'กำลังสมัคร…';
         try {
-          await ctx.data.signUpParent(payload);
+          const acc = await ctx.data.signUpParent(payload);
           toast('สมัครสำเร็จ เข้าใช้งานได้เลย', 'success');
+          if (acc && !(acc.org_ids || []).length) await askSchools(ctx);
           goNext();
         } catch (err) {
           btn.disabled = false; btn.textContent = 'สมัครและเข้าใช้งาน';
@@ -168,4 +175,48 @@ export async function renderTeacherAuth(_arg, ctx) {
   }, 0);
 
   return html;
+}
+
+/** หลังสมัคร: ให้ผู้ปกครองเลือกโรงเรียน/หน่วยงานของลูก (เลือกได้หลายที่) */
+export async function askSchools(ctx) {
+  let orgs = [];
+  try { orgs = await ctx.data.listOrganizations(); } catch (err) { orgs = []; }
+  if (!orgs.length) return;
+
+  return new Promise((resolve) => {
+    const overlay = openModal({
+      title: 'เลือกโรงเรียน/หน่วยงานของบุตรหลาน',
+      size: 'sm',
+      body: `
+        <p class="tiny dim" style="margin:0 0 12px">เลือกได้มากกว่า 1 โรงเรียน — ใช้เพื่อให้ครูในโรงเรียนนั้นเห็นและเพิ่มรายชื่อนักเรียนของท่าน</p>
+        <div class="school-list">
+          ${orgs.map((o) => `<label class="check-line">
+            <input type="checkbox" value="${o.id}">
+            <span>${o.name}${o.type ? ` <span class="tiny dim">(${o.type === 'school' ? 'โรงเรียน' : 'หน่วยงาน'})</span>` : ''}</span>
+          </label>`).join('')}
+        </div>
+        <p class="hint" style="margin-top:12px">หลังเลือกแล้ว ติดต่อครูหรือบุคลากรเพื่อเพิ่มรายชื่อนักเรียนของท่าน</p>`,
+      footer: `<button class="btn btn-ghost" type="button" data-cancel>ข้ามไปก่อน</button>
+               <button class="btn btn-primary" type="button" data-save>บันทึก</button>`,
+      onMount: (root) => {
+        root.querySelector('[data-save]')?.addEventListener('click', async () => {
+          const ids = [...root.querySelectorAll('input[type=checkbox]:checked')].map((i) => i.value);
+          try {
+            await ctx.data.setMyOrgs(ids);
+            if (ids.length) toast('บันทึกโรงเรียนแล้ว — ติดต่อครูเพื่อเพิ่มรายชื่อนักเรียน', 'success');
+          } catch (err) {
+            toast(err.message || 'บันทึกไม่สำเร็จ', 'error');
+          }
+          resolve(true);
+          closeModal();
+        });
+        root.querySelector('[data-cancel]')?.addEventListener('click', async () => {
+          resolve(false);
+          closeModal();
+        });
+        root.querySelector('.modal__close')?.addEventListener('click', () => resolve(false));
+      },
+    });
+    if (!overlay) resolve(false);
+  });
 }

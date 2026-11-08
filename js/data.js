@@ -91,44 +91,39 @@ export async function signInParent(email, password) {
   return account;
 }
 
-/** ล็อกอินครู/เจ้าของ ด้วยรหัสจาก 02._.mock */
+/** ล็อกอินครู/เจ้าของ — ตรวจรหัสผ่านกับข้อมูลสดของ 02._.mock */
 export async function signInTeacher(code, password) {
   const clean = String(code || '').trim();
+  const pass = String(password || '');
   if (!clean) throw new Error('กรุณากรอกรหัสครู');
-  // ดึงอีเมลภายในจากรายชื่อบุคลากรของ 02._.mock แล้วล็อกอินทันที (ไม่ต้องซิงก์ก่อน)
-  const { data: email, error: e1 } = await sb().rpc('bk_teacher_email', { p_code: clean });
-  if (e1) throw e1;
-  if (!email) throw new Error('ไม่พบรหัสครูนี้ในรายชื่อบุคลากรของ 02._.mock');
-  const { data: res, error } = await sb().auth.signInWithPassword({ email, password: String(password || '') });
-  if (error) {
-    if (/invalid login credentials/i.test(error.message)) {
-      throw new Error('รหัสครูหรือรหัสผ่านไม่ถูกต้อง (ใช้รหัสเดียวกับที่เข้า 02._.mock)');
-    }
-    throw new Error(error.message);
-  }
-  session = res.session;
+  const { data: res, error } = await sb().rpc('bk_teacher_login', { p_code: clean, p_password: pass });
+  if (error) throw new Error(error.message || 'เข้าสู่ระบบไม่สำเร็จ');
+  const email = res?.email;
+  if (!email) throw new Error('ไม่พบบัญชีครูนี้');
+  const sign = await sb().auth.signInWithPassword({ email, password: pass });
+  if (sign.error) throw new Error(sign.error.message || 'เข้าสู่ระบบไม่สำเร็จ');
+  session = sign.data.session;
   await loadAccount();
-  if (!account) await ensureAccountFromMock(clean, res.user);
   notify();
   return account;
 }
 
-/** ถ้ายังไม่มีบัญชีในเว็บนี้ แต่มีในรายชื่อบุคลากรของ 02._.mock ให้สร้างให้เลย */
-async function ensureAccountFromMock(code, user) {
-  try {
-    const { data: profile } = await sb().rpc('bk_teacher_profile', { p_code: code });
-    if (!profile) return null;
-    await sb().from('bk_accounts').upsert({
-      user_id: user.id, role: profile.isOwner ? 'owner' : 'teacher',
-      name: profile.name || '', email: user.email || '',
-      teacher_code: profile.code || code, org_id: profile.orgId || null,
-      org_hint: profile.school || '', approved: true,
-    }, { onConflict: 'user_id' });
-    await loadAccount();
-  } catch (err) {
-    console.warn('สร้างบัญชีครูจาก 02._.mock ไม่สำเร็จ', err);
-  }
-  return account;
+/** เปลี่ยนรหัสผ่านของตัวเอง */
+export async function changePassword(newPassword) {
+  const pass = String(newPassword || '');
+  if (pass.length < 6) throw new Error('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
+  const { error } = await sb().auth.updateUser({ password: pass });
+  if (error) throw new Error(error.message || 'เปลี่ยนรหัสผ่านไม่สำเร็จ');
+  const uid = getUser()?.id;
+  if (uid) await sb().from('bk_accounts').update({ password_plain: pass, updated_at: new Date().toISOString() }).eq('user_id', uid);
+  return true;
+}
+
+/** เจ้าของ/ครู เปลี่ยนรหัสผ่านให้ผู้ปกครอง */
+export async function setParentPassword(userId, newPassword) {
+  const { data, error } = await sb().rpc('bk_set_parent_password', { p_user: userId, p_password: String(newPassword || '') });
+  if (error) throw new Error(error.message || 'ตั้งรหัสใหม่ไม่สำเร็จ');
+  return data;
 }
 
 /** สร้างบัญชีครูทั้งหมดจากข้อมูลใน 02._.mock (ครั้งแรกเรียกได้ก่อนล็อกอิน) */
@@ -386,13 +381,6 @@ export async function setParentStudents(userId) {
   return { links: links || [], paid, orders: (orders || []).length };
 }
 
-export async function removeParent(userId) {
-  const { data: links } = await sb().from('bk_parent_students').select('id').eq('user_id', userId);
-  if (links?.length) await sb().from('bk_parent_students').delete().eq('user_id', userId);
-  const { error } = await sb().from('bk_accounts').delete().eq('user_id', userId);
-  if (error) throw error;
-}
-
 /* ── นักเรียนที่ผูกไว้ ──────────────────────────────────── */
 export async function listMyStudents() {
   const { data: rows, error } = await sb().from('bk_parent_students').select('*').order('created_at');
@@ -406,25 +394,52 @@ export async function listAllLinks() {
   return rows || [];
 }
 
-export async function linkStudent(userId, studentId) {
-  const { data, error } = await sb().rpc('bk_teacher_link_student', { p_parent: userId, p_student_id: studentId });
+/** รายชื่อนักเรียนทั้งหมด (เจ้าของ = ทุกหน่วยงาน / ครู = หน่วยงานตัวเอง) พร้อมผู้ปกครองที่ผูกอยู่ */
+export async function studentsOverview() {
+  const { data, error } = await sb().rpc('bk_students_overview');
   if (error) throw error;
-  return data;
+  return data || [];
 }
 
-/** เจ้าของผูกนักเรียนคนไหนก็ได้ (ข้ามหน่วยงาน) */
-export async function ownerLinkStudent(userId, student) {
-  const { error } = await sb().from('bk_parent_students').insert({
-    user_id: userId, student_id: student.id, student_code: student.code || '',
-    student_name: student.name || '', org_id: student.orgId || '', created_by: getUser()?.id,
-  });
+export async function linkParentStudent(studentId, userId) {
+  const { data, error } = await sb().rpc('bk_link_parent_student', { p_student_id: studentId, p_user: userId });
   if (error) throw error;
+  return data;
 }
 
 export async function unlinkStudent(linkId) {
   const { data, error } = await sb().rpc('bk_teacher_unlink_student', { p_link: linkId });
   if (error) throw error;
   return data;
+}
+
+export async function parentDetail(userId) {
+  const { data, error } = await sb().rpc('bk_parent_detail', { p_user: userId });
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteParent(userId) {
+  const { data, error } = await sb().rpc('bk_delete_parent', { p_user: userId });
+  if (error) throw error;
+  return data;
+}
+
+export async function listOrganizations() {
+  const { data, error } = await sb().rpc('bk_organizations');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function setMyOrgs(orgIds) {
+  const { data, error } = await sb().rpc('bk_set_my_orgs', { p_org_ids: orgIds || [] });
+  if (error) throw error;
+  return data;
+}
+
+/** เจ้าของ/ครู ลบผู้ปกครอง (ลบออเดอร์+การผูก+บัญชี) */
+export async function removeParent(userId) {
+  return deleteParent(userId);
 }
 
 /* ── ข้อมูลชุดสอบ/คะแนนจาก 02._.mock ───────────────────── */

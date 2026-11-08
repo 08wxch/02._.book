@@ -48,14 +48,16 @@ function renderHeader() {
   const host = document.getElementById('site-header');
   if (!host) return;
   const role = me?.role;
-  const links = [
-    navLink('/', 'หน้าแรก'),
-    navLink('/courses', 'คอร์สเรียน'),
-  ];
+  const links = [];
+  if (role !== 'teacher') {
+    links.push(navLink('/', 'หน้าแรก'));
+    links.push(navLink('/courses', 'คอร์สเรียน'));
+  }
   if (role === 'parent' || !me) {
     links.push(navLink('/scores', 'คะแนนนักเรียน'));
     links.push(navLink('/coupons', 'บัตรส่วนลด'));
   }
+  if (role === 'teacher' || role === 'owner') links.push(navLink('/students', 'รายชื่อนักเรียน'));
   if (role === 'owner') links.push(navLink('/admin', 'หลังบ้าน'));
   if (role === 'teacher') links.push(navLink('/portal', 'จัดการนักเรียน'));
   links.push(navLink('/account', 'บัญชีของฉัน'));
@@ -118,7 +120,19 @@ function parse() {
 
 /* ── เลย์เอาต์คอนโซล (แถบด้านข้าง) ─────────────────────── */
 export function consoleLayout({ items = [], title = '', subtitle = '', body = '' }) {
+  const acc = data.getAccount() || {};
   return `
+  <div class="console__top">
+    <a class="brand brand--default" href="#/admin">
+      <span class="brand-mark brand-mark--sm"><img src="./assets/brand/logo-circle.png" alt=""></span>
+      <span class="brand__words"><span class="brand__name">02._.book</span>
+        <span class="brand__sub">${acc.role === 'owner' ? 'หลังบ้านเจ้าของระบบ' : 'มุมครู'}</span></span>
+    </a>
+    <div class="console__top-right">
+      <span class="tiny dim">${e(acc.name || acc.email || '')}</span>
+      <button class="btn btn-ghost btn-sm" data-signout>ออกจากระบบ</button>
+    </div>
+  </div>
   <div class="console">
     <aside class="console__nav">
       <div class="console__eyebrow">เมนูจัดการ</div>
@@ -155,6 +169,7 @@ const ROUTES = [
   { test: (p) => p === '/account', view: renderAccount, auth: true },
   { test: (p) => p === '/coupons', view: renderCoupons, auth: true, after: (c) => bindCoupons(c) },
   { test: (p) => p === '/scores', view: renderScores, auth: true },
+  { test: (p) => p === '/students', view: renderScores, auth: true, role: ['owner', 'teacher'], shell: 'console' },
   { test: (p) => p.startsWith('/scores/') && p.includes('/exam/'), view: renderExamDetail, auth: true },
   { test: (p) => p.startsWith('/scores/'), view: renderScores, key: 1, auth: true },
   { test: (p) => p === '/admin', view: renderAdmin, auth: true, role: 'owner', shell: 'console' },
@@ -199,13 +214,17 @@ async function render() {
       location.hash = `#/login?next=${encodeURIComponent(route.path)}`;
       return;
     }
-    if (match.role && me?.role !== match.role) {
+    const allowed = match.role ? (Array.isArray(match.role) ? match.role : [match.role]) : null;
+    if (allowed && !allowed.includes(me?.role)) {
       app.innerHTML = `<div class="wrap"><div class="empty"><b>ไม่มีสิทธิ์เข้าหน้านี้</b>
         <a class="btn btn-ghost btn-sm" href="#/">กลับหน้าแรก</a></div></div>`;
       return;
     }
     const arg = match.key ? route.parts[match.key] : null;
-    document.body.dataset.shell = match.shell === 'console' ? 'console' : 'page';
+    document.body.dataset.role = me?.role || 'anon';
+    const consoleish = match.shell === 'console'
+      || (route.path === '/account' && (me?.role === 'owner' || me?.role === 'teacher'));
+    document.body.dataset.shell = consoleish ? 'console' : 'page';
     const html = await match.view(arg, { ...ctx, me, settings, route });
     if (html) app.innerHTML = html;
     if (typeof match.after === 'function') match.after(ctx);
@@ -216,7 +235,21 @@ async function render() {
       <p class="tiny dim">${e(err.message || '')}</p>
       <a class="btn btn-ghost btn-sm" href="#/">กลับหน้าแรก</a></div></div>`;
   }
+  bindConsoleSignout();
   renderFooter();
+}
+
+function bindConsoleSignout() {
+  document.querySelectorAll('[data-signout]').forEach((btn) => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', async () => {
+      const ok = await confirmDialog({ title: 'ออกจากระบบ', message: 'ต้องการออกจากระบบใช่ไหม?', confirmLabel: 'ออกจากระบบ' });
+      if (!ok) return;
+      await data.signOut();
+      location.hash = '#/';
+    });
+  });
 }
 
 /* ── boot ─────────────────────────────────────────────── */

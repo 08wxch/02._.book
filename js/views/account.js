@@ -301,7 +301,7 @@ function lineChart(points) {
   }).join('');
 
   return `
-  <svg class="line-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
+  <svg class="line-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img"
        aria-label="กราฟเส้นพัฒนาการ: ${pts.map((p) => `${p.v}%`).join(', ')}">
     <defs>
       <linearGradient id="scoreFill" x1="0" y1="0" x2="0" y2="1">
@@ -367,5 +367,6 @@ function questionCard(q, i) {
       ? `<div class="q-answer">ตอบ: <b ${mathAttr(ans || '—')}>${e(ans || '—')}</b>${
           correct ? ` · เฉลย: <b ${mathAttr(correct)}>${e(correct)}</b>` : ''}</div>` : ''}
     ${q.explanation ? `<div class="q-answer">คำอธิบาย: <span ${mathAttr(q.explanation)}>${e(q.explanation)}</span></div>` : ''}
+    ${q.manual && q.manual.comment ? `<div class="q-comment">ความคิดเห็นครู: <span ${mathAttr(q.manual.comment)}>${e(q.manual.comment)}</span></div>` : ''}
   </div>`;
 }
