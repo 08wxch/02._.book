@@ -23,9 +23,35 @@ export async function renderScores(studentId, ctx) {
   if (!studentId) {
     if (isParent) {
       if (students.length === 1) { location.hash = `#/scores/${encodeURIComponent(students[0].id)}`; return ''; }
+
+      // ดึงคะแนนของลูกทุกคนเพื่อวาดกราฟเทียบ
+      const reports = await Promise.all(students.map((s) => ctx.data.studentReport(s.id).catch(() => null)));
+      const series = reports.map((r, i) => ({
+        name: r?.student?.name || students[i].name || students[i].id,
+        id: students[i].id,
+        scores: ((r?.exams) || [])
+          .filter((x) => x.percent !== null && x.percent !== undefined)
+          .slice()
+          .sort((a, b) => new Date(a.date) - new Date(b.date))
+          .map((x) => ({ percent: Number(x.percent), title: x.title, examId: x.examId })),
+      })).filter((s) => s.scores.length);
+
       return `<div class="wrap" style="padding-top:34px">
-        <h1 style="font-family:var(--brand-font);font-size:26px;margin:8px 0 6px">เลือกนักเรียน</h1>
-        <p class="tiny dim" style="margin:0 0 18px">ดูคะแนนและข้อที่ผิดของบุตรหลานแต่ละคน</p>
+        <h1 style="font-family:var(--brand-font);font-size:26px;margin:8px 0 6px">บุตรหลานของฉัน</h1>
+        <p class="tiny dim" style="margin:0 0 18px">เทียบพัฒนาการของแต่ละคนจากชุดข้อสอบครั้งที่ 1 เป็นต้นไป</p>
+
+        ${series.length > 1 ? `
+        <div class="book-card line-card" style="margin-bottom:20px">
+          <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline">
+            <div style="font-family:var(--brand-font);font-size:16px">กราฟเทียบคะแนน</div>
+            <div class="tiny dim">แกนนอน = ครั้งที่ทำ (1, 2, 3 …)</div>
+          </div>
+          ${compareChart(series)}
+          <div class="chart-legend">
+            ${series.map((s, i) => `<span class="chart-legend__item"><i class="tone-${i % 6}"></i>${e(s.name)}</span>`).join('')}
+          </div>
+        </div>` : ''}
+
         <div class="course-grid">
           ${students.map((s) => `<a class="course-card" href="#/scores/${encodeURIComponent(s.id)}" style="text-decoration:none;color:inherit">
             <div class="course-card__body" style="padding:20px">
@@ -195,6 +221,40 @@ export async function renderExamDetail(_arg, ctx) {
   </div>`;
 }
 
+
+/* ── กราฟเทียบคะแนนบุตรหลายคน ────────────────────────── */
+function compareChart(series) {
+  const W = 640, H = 220, padL = 40, padR = 20, padTop = 26, padBottom = 34;
+  const maxLen = Math.max(...series.map((s) => s.scores.length));
+  const allValues = series.flatMap((s) => s.scores.map((x) => x.percent));
+  let hi = Math.min(100, Math.ceil((Math.max(...allValues) + 8) / 5) * 5);
+  let lo = Math.max(0, Math.floor((Math.min(...allValues) - 8) / 5) * 5);
+  if (hi - lo < 20) { hi = Math.min(100, lo + 20); lo = Math.max(0, hi - 20); }
+
+  const stepX = maxLen > 1 ? (W - padL - padR) / (maxLen - 1) : 0;
+  const yOf = (v) => padTop + (1 - (v - lo) / (hi - lo)) * (H - padTop - padBottom);
+  const xOf = (i) => padL + i * stepX;
+
+  const grid = [lo, Math.round((lo + hi) / 2), hi].map((v) => {
+    const y = yOf(v);
+    return `<line class="grid-line" x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}"/>
+      <text class="axis-label" x="${padL - 8}" y="${(y + 3).toFixed(1)}" text-anchor="end">${v}</text>`;
+  }).join('');
+
+  const lines = series.map((s, idx) => {
+    const pts = s.scores.map((x, i) => ({ x: xOf(i), y: yOf(x.percent), v: x.percent, title: x.title }));
+    const poly = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+    return `${pts.length > 1 ? `<polyline class="line-path tone-${idx % 6}" points="${poly}"/>` : ''}
+      ${pts.map((p) => `<circle class="dot tone-${idx % 6}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5"><title>${e(s.name)} · ${e(p.title)} · ${p.v}%</title></circle>`).join('')}
+      ${pts.map((p) => `<text class="val" x="${p.x.toFixed(1)}" y="${(p.y - 10 - idx * 11).toFixed(1)}" text-anchor="middle">${p.v}</text>`).join('')}`;
+  }).join('');
+
+  const axis = Array.from({ length: maxLen }, (_, i) => `<span>ครั้งที่ ${i + 1}</span>`).join('');
+  return `<svg class="line-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img"
+      aria-label="กราฟเทียบคะแนนบุตรหลาน">${grid}${lines}</svg>
+    <div class="chart-x">${axis}</div>`;
+}
+
 /* ── กราฟเส้น (SVG) ───────────────────────────────────── */
 function lineChart(points, studentId = '') {
   const W = 640, H = 150, padL = 40, padR = 26, padTop = 30, padBottom = 30;
@@ -216,6 +276,7 @@ function lineChart(points, studentId = '') {
   const pts = points.map((p, i) => ({
     x: xOf(i), y: yOf(Number(p.percent)), v: Number(p.percent),
     label: p.date ? thaiDate(p.date) : '', title: p.title, examId: p.examId,
+    delta: i === 0 ? null : Math.round(Number(p.percent) - Number(points[i - 1].percent)),
   }));
 
   const best = Math.max(...pts.map((p) => p.v));
@@ -231,7 +292,13 @@ function lineChart(points, studentId = '') {
 
   const labels = pts.map((p) => {
     const above = p.y > padTop + 16;
-    return `<text class="val" x="${p.x.toFixed(1)}" y="${(above ? p.y - 11 : p.y + 18).toFixed(1)}" text-anchor="middle">${p.v}%</text>`;
+    const y = above ? p.y - 11 : p.y + 18;
+    const d = p.delta;
+    const deltaTxt = (d === null || d === undefined) ? ''
+      : d === 0 ? ' • เท่าเดิม'
+      : d > 0 ? ` ▲${d}%` : ` ▼${Math.abs(d)}%`;
+    const deltaCls = (d === null || d === undefined || d === 0) ? '' : d > 0 ? ' is-up' : ' is-down';
+    return `<text class="val" x="${p.x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle">${p.v}%<tspan class="val-delta${deltaCls}">${deltaTxt}</tspan></text>`;
   }).join('');
 
   return `
