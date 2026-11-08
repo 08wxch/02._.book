@@ -12,7 +12,7 @@ export async function renderAuth(_arg, ctx) {
   <div class="wrap" style="max-width:520px;padding-top:56px">
     <div class="book-card">
       <div style="text-align:center;margin-bottom:18px">
-        <div class="brand__mark" style="margin:0 auto 10px"><img src="./Circle.jpg" alt=""></div>
+        <div class="brand-mark brand-mark--lg"><img src="./assets/brand/logo-circle.png" alt=""></div>
         <h1 style="font-family:var(--brand-font);font-size:24px;margin:0 0 6px">เข้าสู่ระบบ / สมัครสมาชิก</h1>
         <p class="tiny dim" style="margin:0">ใช้บัญชีของคุณเพื่อซื้อคอร์สและดูคะแนนนักเรียน</p>
       </div>

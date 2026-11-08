@@ -58,7 +58,7 @@ function renderHeader() {
   host.innerHTML = `
   <div class="header-inner">
     <a class="brand brand--default" href="#/">
-      <span class="brand-mark" style="width:36px;height:36px"><img src="./Circle.jpg" alt=""></span>
+      <span class="brand-mark brand-mark--sm"><img src="./assets/brand/logo-circle.png" alt=""></span>
       <span class="brand__words"><span class="brand__name">02._.book</span>
       <span class="brand__sub">จองคอร์สและดูคะแนน</span></span>
     </a>
