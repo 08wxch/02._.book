@@ -72,7 +72,25 @@ function renderHeader() {
       <span class="brand__words"><span class="brand__name">02._.book</span>
       <span class="brand__sub">ติดตามผลการเรียนออนไลน์</span></span>
     </a>
-    <nav class="main-nav" id="main-nav">${links.join('')}</nav>
+    <nav class="main-nav" id="main-nav" aria-label="เมนูหลัก">
+      <div class="nav-drawer__head">
+        <span class="nav-drawer__title">เมนู</span>
+        <button class="nav-close" id="nav-close" type="button" aria-label="ปิดเมนู">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M6 6l12 12M18 6L6 18"/>
+          </svg>
+        </button>
+      </div>
+      ${links.join('')}
+      <div class="nav-drawer__foot">
+        ${me
+          ? `<button class="nav-drawer__profile" id="nav-profile" type="button">${avatarHtml(me, 34)}
+               <span><b>${e(me.name || me.email || '')}</b>
+               <span class="tiny dim">แก้ไขข้อมูล / เปลี่ยนรหัสผ่าน</span></span></button>`
+          : `<a class="btn btn-primary btn-block btn-sm" href="#/login">เข้าสู่ระบบ</a>`}
+      </div>
+    </nav>
+    <div class="nav-scrim" id="nav-scrim" hidden></div>
     <div class="header-actions">
       ${me
         ? `<button class="user-chip" id="profile-btn" title="ข้อมูลของฉัน">${avatarHtml(me, 30)}
@@ -86,16 +104,25 @@ function renderHeader() {
 
   const toggle = host.querySelector('#nav-toggle');
   const nav = host.querySelector('#main-nav');
-  toggle?.addEventListener('click', () => {
-    const open = nav.classList.toggle('is-open');
-    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    host.classList.toggle('is-nav-open', open);
-  });
-  nav?.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => {
-    nav.classList.remove('is-open');
-    toggle?.setAttribute('aria-expanded', 'false');
-    host.classList.remove('is-nav-open');
-  }));
+  const scrim = host.querySelector('#nav-scrim');
+
+  const setDrawer = (open) => {
+    if (!nav) return;
+    nav.classList.toggle('is-open', open);
+    if (scrim) {
+      scrim.hidden = !open;
+      requestAnimationFrame(() => scrim.classList.toggle('is-open', open));
+    }
+    toggle?.setAttribute('aria-expanded', open ? 'true' : 'false');
+    document.body.classList.toggle('nav-open', open);
+  };
+
+  toggle?.addEventListener('click', () => setDrawer(!nav.classList.contains('is-open')));
+  host.querySelector('#nav-close')?.addEventListener('click', () => setDrawer(false));
+  scrim?.addEventListener('click', () => setDrawer(false));
+  host.querySelector('#nav-profile')?.addEventListener('click', () => { setDrawer(false); openProfile(); });
+  nav?.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => setDrawer(false)));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setDrawer(false); });
 
   host.querySelector('[data-signout]')?.addEventListener('click', async () => {
     const ok = await confirmDialog({ title: 'ออกจากระบบ', message: 'ต้องการออกจากระบบใช่ไหม?', confirmLabel: 'ออกจากระบบ' });
