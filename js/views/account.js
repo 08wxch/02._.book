@@ -157,6 +157,7 @@ export async function renderScores(studentId, ctx) {
 }
 
 export function studentOverviewHtml(report, ctx, opts = {}) {
+  const studentId = opts.studentId || report.student?.id || '';
   const backHref = opts.backHref || '#/scores';
   const backLabel = opts.backLabel || 'ย้อนกลับ';
   const exams = (report.exams || []).slice().sort((a, b) => new Date(a.date) - new Date(b.date));
