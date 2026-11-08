@@ -22,6 +22,7 @@ export async function renderAuth(_arg, ctx) {
         <button type="button" data-tab="signup">สมัครใหม่</button>
       </div>
 
+      ${ctx.blocked ? `<div class="form-error is-visible"><span>${e(ctx.blocked)}</span></div>` : ''}
       <div id="auth-body"></div>
 
     </div>

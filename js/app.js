@@ -311,6 +311,7 @@ async function render() {
   renderHeader();
   app.innerHTML = '<div class="page-loader"><span class="spinner"></span></div>';
   try {
+    ctx.blocked = blockedMessage;
     if (match.auth && !me) {
       // ถ้ามี session อยู่แต่โหลดโปรไฟล์ยังไม่เสร็จ ให้รอแล้วลองใหม่ก่อนเด้งไป login
       if (data.getUser()) {
@@ -360,6 +361,21 @@ function bindConsoleSignout() {
 }
 
 /* ── boot ─────────────────────────────────────────────── */
+let blockedMessage = '';
+
+/** เว็บนี้สำหรับผู้ปกครองเท่านั้น — ครู/เจ้าของระบบใช้ 02._.admin */
+async function enforceParentOnly() {
+  const acc = data.getAccount();
+  if (acc && (acc.role === 'owner' || acc.role === 'teacher')) {
+    await data.signOut();
+    me = null;
+    ctx.me = null;
+    blockedMessage = 'บัญชีนี้เป็นบัญชีครู/เจ้าของระบบ — กรุณาเข้าใช้งานที่ระบบหลังบ้าน (02._.admin)';
+    return false;
+  }
+  return true;
+}
+
 async function boot() {
   try {
     await data.init();
@@ -368,11 +384,13 @@ async function boot() {
   }
   me = data.getAccount();
   ctx.me = me;
+  await enforceParentOnly();
   try { settings = await data.getSettings(); ctx.settings = settings; } catch (err) { console.warn(err); }
 
   data.onChange(async () => {
     me = data.getAccount();
     ctx.me = me;
+    await enforceParentOnly();
     try { settings = await data.getSettings(); ctx.settings = settings; } catch (err) { /* ignore */ }
     await render();
   });
