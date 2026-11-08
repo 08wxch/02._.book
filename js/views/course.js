@@ -56,7 +56,10 @@ export async function renderCourse(id, ctx) {
           ${course.seats ? `<span class="seat-badge${left <= 2 ? ' is-low' : ''}">เหลือ ${left} ที่นั่ง</span>` : '<span class="seat-badge">ไม่จำกัดที่นั่ง</span>'}
         </div>
 
-        ${isOwner
+        ${ctx.me?.role === 'teacher'
+          ? `<div class="empty-soft" style="padding:18px"><b>บัญชีครูไม่สามารถซื้อคอร์สได้</b>
+               <p class="tiny dim" style="margin:0">ใช้บัญชีนี้จัดการนักเรียนและคะแนนเท่านั้น</p></div>`
+          : isOwner
           ? `<a class="btn btn-primary btn-block" href="#/admin?tab=courses&edit=${course.id}">แก้ไขคอร์สนี้ (เจ้าของระบบ)</a>`
           : full
             ? `<div class="empty-soft" style="padding:20px"><b>ที่นั่งเต็มแล้ว</b>

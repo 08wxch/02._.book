@@ -32,6 +32,15 @@ export async function renderAccount(_arg, ctx) {
         <div class="field-row"><label>LINE ID</label>
           <input id="acc-line" value="${e(acc.line_id || '')}" placeholder="line id" maxlength="60"></div>
         <button class="btn btn-ghost btn-block btn-sm" id="acc-save">บันทึกข้อมูล</button>
+
+        <div style="border-top:1px solid var(--book-line);margin-top:16px;padding-top:14px">
+          <div style="font-family:var(--brand-font);font-size:15px;margin-bottom:8px">เปลี่ยนรหัสผ่าน</div>
+          <div class="field-row"><label>รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)</label>
+            <input id="acc-pass" type="password" placeholder="รหัสผ่านใหม่" autocomplete="new-password"></div>
+          <div class="field-row"><label>ยืนยันรหัสผ่านใหม่</label>
+            <input id="acc-pass2" type="password" placeholder="พิมพ์ซ้ำ" autocomplete="new-password"></div>
+          <button class="btn btn-primary btn-block btn-sm" id="acc-pass-save">เปลี่ยนรหัสผ่าน</button>
+        </div>
         <p class="hint" style="margin-top:8px">อีเมล: ${e(acc.email || '')}</p>
       </div>
 

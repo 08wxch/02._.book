@@ -112,35 +112,21 @@ function ordersHtml(orders, ctx) {
 /* ── คอร์ส ───────────────────────────────────────────── */
 function coursesHtml(courses, editId, ctx) {
   const editing = courses.find((c) => c.id === editId);
-  return `
-  <div class="book-grid-2">
-    <div class="book-card">
-      <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">คอร์สทั้งหมด (${courses.length})</div>
-      <div class="table-wrap"><table class="book-table">
-        <thead><tr><th>คอร์ส</th><th>ราคา</th><th>ที่นั่ง</th><th>สถานะ</th><th></th></tr></thead>
-        <tbody>${courses.map((c) => `<tr>
-          <td>${e(c.title)}<div class="tiny dim">${e(c.level || '')}</div></td>
-          <td>${ctx.baht(c.price)}</td>
-          <td>${c.seats ? `${c.seats} ที่นั่ง` : 'ไม่จำกัด'}</td>
-          <td>${c.active ? '<span class="seat-badge">เปิดขาย</span>' : '<span class="seat-badge is-low">ปิด</span>'}</td>
-          <td style="white-space:nowrap">
-            <a class="btn btn-ghost btn-sm" href="#/admin?tab=courses&edit=${c.id}">แก้ไข</a>
-            <button class="btn btn-ghost btn-sm" data-del-course="${c.id}" style="color:var(--red)">ลบ</button>
-          </td>
-        </tr>`).join('')}</tbody>
-      </table></div>
-    </div>
+  const open = Boolean(editing) || ctx.route?.query.get('new') === '1';
 
+  const form = open ? `
     <div class="book-card">
-      <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">${editing ? 'แก้ไขคอร์ส' : 'เพิ่มคอร์สใหม่'}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="font-family:var(--brand-font);font-size:16px">${editing ? 'แก้ไขคอร์ส' : 'เพิ่มคอร์สใหม่'}</div>
+        <a class="btn btn-ghost btn-sm" href="#/admin?tab=courses">ปิด</a>
+      </div>
       <input type="hidden" id="c-id" value="${editing ? editing.id : ''}">
-      <div class="field-row"><label>ชื่อคอร์ส</label><input id="c-title" value="${e(editing?.title || '')}"></div>
-      <div class="field-row"><label>คำโปรยสั้น</label><input id="c-sub" value="${e(editing?.subtitle || '')}"></div>
-      <div class="field-row"><label>รายละเอียด</label><textarea id="c-detail">${e(editing?.detail || '')}</textarea></div>
+      <div class="field-row"><label>ชื่อคอร์ส</label><input id="c-title" value="${e(editing?.title || '')}" placeholder="เช่น คณิตศาสตร์ ม.ปลาย"></div>
+      <div class="field-row"><label>คำโปรยสั้น</label><input id="c-sub" value="${e(editing?.subtitle || '')}" placeholder="หนึ่งบรรทัด บอกจุดเด่น"></div>
+      <div class="field-row"><label>รายละเอียด</label><textarea id="c-detail" placeholder="อธิบายว่าเรียนอะไร ได้อะไร">${e(editing?.detail || '')}</textarea></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="field-row"><label>ราคา (บาท)</label><input id="c-price" type="number" min="0" step="50" value="${Number(editing?.price || 0)}"></div>
-        <div class="field-row"><label>ชั่วโมง</label><input id="c-hours" type="number" min="0" value="${Number(editing?.hours || 0)}"></div>
-        <div class="field-row"><label>จำนวนครั้ง</label><input id="c-lessons" type="number" min="0" value="${Number(editing?.lessons || 0)}"></div>
+        <div class="field-row"><label>ระดับชั้น</label><input id="c-level" value="${e(editing?.level || '')}" placeholder="เช่น ม.4–ม.6"></div>
       </div>
       <div class="field-row">
         <label>จำนวนที่นั่ง</label>
@@ -150,21 +136,63 @@ function coursesHtml(courses, editId, ctx) {
         </label>
         <input id="c-seats" type="number" min="1" value="${Number(editing?.seats || 8)}"
           ${!editing || !Number(editing?.seats) ? 'disabled' : ''} placeholder="เช่น 8">
-        <div class="tiny dim">ถ้าไม่ติ๊ก "ไม่จำกัด" ระบบจะหยุดรับเมื่อเต็มจำนวน</div>
       </div>
-      <div class="field-row"><label>ระดับชั้น</label><input id="c-level" value="${e(editing?.level || '')}" placeholder="เช่น ม.4–ม.6"></div>
-      <div class="field-row"><label>รูปปก (URL หรืออัปโหลด)</label>
-        <input id="c-img" value="${e(editing?.image_url || '')}" placeholder="https://...">
-        <input type="file" id="c-img-file" accept="image/*" style="margin-top:6px">
+      <details style="margin:10px 0">
+        <summary class="tiny dim" style="cursor:pointer">รายละเอียดเพิ่มเติม (ไม่บังคับ)</summary>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+          <div class="field-row"><label>ชั่วโมงเรียน</label><input id="c-hours" type="number" min="0" value="${Number(editing?.hours || 0)}"></div>
+          <div class="field-row"><label>จำนวนครั้ง/ชุด</label><input id="c-lessons" type="number" min="0" value="${Number(editing?.lessons || 0)}"></div>
+        </div>
+        <p class="hint">คอร์สแบบขายเป็นชุดแบบฝึกหัดไม่ต้องใส่ก็ได้ — ใส่แค่ชื่อ/รายละเอียด/ราคาก็พอ</p>
+      </details>
+      <div class="field-row"><label>รูปปก (แนะนำ 1200×675 px)</label>
+        <input type="file" id="c-img-file" accept="image/*">
+        <div id="c-img-preview" style="margin-top:8px">
+          ${editing?.image_url ? `<img src="${e(editing.image_url)}" class="coupon-img-preview" alt="">` : ''}
+        </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="btn btn-primary" id="c-save">${editing ? 'บันทึกการแก้ไข' : 'เพิ่มคอร์ส'}</button>
-        ${editing ? `<a class="btn btn-ghost" href="#/admin?tab=courses">ยกเลิก</a>` : ''}
+        <button class="btn btn-primary" id="c-save">${editing ? 'บันทึกการแก้ไข' : 'บันทึกคอร์ส'}</button>
+        <a class="btn btn-ghost" href="#/admin?tab=courses">ยกเลิก</a>
       </div>
-    </div>
-  </div>`;
-}
+    </div>` : '';
 
+  const preview = editing ? `
+    <div class="book-card" style="margin-top:14px">
+      <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">ตัวอย่างที่ผู้ปกครองเห็น</div>
+      ${ctx.courseCard({ ...editing, left: editing.seats ? Math.max(0, editing.seats - (editing.sold || 0)) : null })}
+    </div>` : '';
+
+  return `
+  <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+    <div class="tiny dim">ทั้งหมด ${courses.length} คอร์ส</div>
+    <a class="btn btn-primary btn-sm" href="#/admin?tab=courses&new=1">+ เพิ่มคอร์ส</a>
+  </div>
+
+  <div class="${open ? 'book-grid-2' : ''}">
+    <div>
+      ${courses.length ? `<div class="book-card" style="padding:8px 10px">
+        ${courses.map((c) => `
+          <div class="student-row">
+            <a class="student-row__main" href="#/course/${c.id}">
+              <span class="student-row__avatar">${c.image_url ? `<img src="${e(c.image_url)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : e((c.title || '?').charAt(0))}</span>
+              <span class="student-row__name">
+                <b>${e(c.title)}</b>
+                <span class="tiny dim">${ctx.baht(c.price)} · ${c.seats ? `${c.seats} ที่นั่ง` : 'ไม่จำกัดที่นั่ง'}${c.active ? '' : ' · ปิดขาย'}</span>
+              </span>
+            </a>
+            <div style="display:flex;gap:6px">
+              <a class="btn btn-ghost btn-sm" href="#/admin?tab=courses&edit=${c.id}">แก้ไข</a>
+              <button class="btn btn-ghost btn-sm" data-del-course="${c.id}" style="color:var(--red)">ลบ</button>
+            </div>
+          </div>`).join('')}
+      </div>` : `<div class="empty-soft"><b>ยังไม่มีคอร์ส</b>
+        <a class="btn btn-primary btn-sm" href="#/admin?tab=courses&new=1">เพิ่มคอร์สแรก</a></div>`}
+    </div>
+    ${form}
+  </div>
+  ${preview}`;
+}
 
 /* ── บัตรส่วนลด ───────────────────────────────────────── */
 function couponsHtml(coupons, courses, editId, ctx) {
@@ -447,7 +475,7 @@ function bindAdmin(ctx, tab) {
     const id = root.querySelector('#c-id').value || undefined;
     btn.disabled = true;
     try {
-      let image_url = root.querySelector('#c-img').value.trim();
+      let image_url = '';
       const file = root.querySelector('#c-img-file').files?.[0];
       if (file) image_url = await ctx.data.uploadCover(file);
       await ctx.data.saveCourse({
@@ -459,7 +487,7 @@ function bindAdmin(ctx, tab) {
         lessons: Number(root.querySelector('#c-lessons').value),
         seats: root.querySelector('#c-unlimited').checked ? 0 : Number(root.querySelector('#c-seats').value || 0),
         level: root.querySelector('#c-level').value.trim(),
-        image_url,
+        image_url: image_url || root.querySelector('#c-img-preview')?.querySelector('img')?.getAttribute('src') || '',
       });
       toast('บันทึกคอร์สแล้ว', 'success');
       location.hash = '#/admin?tab=courses';
