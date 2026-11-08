@@ -1,0 +1,126 @@
+/* ── ชำระเงิน: QR พร้อมเพย์ + อัปโหลดสลิป ──────────────── */
+
+import { toast } from '../ui.js';
+import { e, thaiDateTime } from '../utils.js';
+import { promptPayQrDataUrl } from '../promptpay.js';
+
+export async function renderCheckout(orderId, ctx) {
+  const order = await ctx.data.getOrder(orderId);
+  if (!order) {
+    return `<div class="wrap" style="padding-top:40px"><div class="empty-soft"><b>ไม่พบคำสั่งซื้อนี้</b>
+      <a class="btn btn-ghost btn-sm" href="#/account">ไปที่บัญชีของฉัน</a></div></div>`;
+  }
+  if (ctx.me?.role === 'parent' && order.user_id !== ctx.me.user_id) {
+    return `<div class="wrap" style="padding-top:40px"><div class="empty-soft"><b>ไม่มีสิทธิ์ดูคำสั่งซื้อนี้</b></div></div>`;
+  }
+
+  const s = ctx.settings || {};
+  let qr = '';
+  let qrError = '';
+  try {
+    qr = promptPayQrDataUrl({ id: s.promptpay_id, type: s.promptpay_type || 'phone', amount: order.amount }, 4);
+  } catch (err) {
+    qrError = err.message;
+  }
+
+  const done = order.status === 'pending_confirm' || order.status === 'confirmed';
+  const slipView = order.slip_path ? await ctx.data.slipUrl(order.slip_path).catch(() => '') : '';
+
+  const html = `
+  <div class="wrap" style="padding-top:30px">
+    <div class="eyebrow">CHECKOUT</div>
+    <h1 style="font-family:var(--brand-font);font-size:28px;margin:8px 0 18px">ชำระเงินค่าคอร์ส</h1>
+
+    <div class="book-grid-2">
+      <div class="book-card">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div>
+            <div style="font-family:var(--brand-font);font-size:18px">${e(order.course_title)}</div>
+            <div class="tiny dim">ผู้เรียน ${e(order.student_name || '—')}</div>
+            <div class="tiny dim">สร้างเมื่อ ${e(thaiDateTime(order.created_at))}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="price" style="font-size:26px">${ctx.baht(order.amount)}</div>
+            ${ctx.statusBadge(order.status)}
+          </div>
+        </div>
+
+        ${done ? `
+          <div class="empty-soft" style="margin-top:20px">
+            <b>${order.status === 'confirmed' ? 'ครูยืนยันการชำระเงินแล้ว 🎉' : 'ส่งสลิปแล้ว รอครูยืนยัน'}</b>
+            <p class="tiny dim">${order.status === 'confirmed'
+              ? 'ครูจะติดต่อกลับตามเบอร์/LINE ที่คุณให้ไว้'
+              : 'โดยปกติครูจะยืนยันภายใน 24 ชั่วโมง — ตรวจสอบสถานะได้ที่หน้าบัญชีของฉัน'}</p>
+            ${slipView ? `<img class="slip-thumb" src="${e(slipView)}" alt="สลิป" style="margin-top:10px">` : ''}
+            <div style="margin-top:14px"><a class="btn btn-ghost btn-sm" href="#/account">ไปที่บัญชีของฉัน</a></div>
+          </div>` : `
+          <div style="margin-top:20px" id="pay-area">
+            ${qr
+              ? `<div class="qr-box">
+                   <img src="${qr}" alt="PromptPay QR">
+                   <div class="tiny dim">สแกนด้วยแอปธนาคาร · ยอด ${ctx.baht(order.amount)}</div>
+                   <div class="tiny dim">พร้อมเพย์ ${e(s.promptpay_name || '')} · ${e(s.promptpay_id || '')}</div>
+                 </div>`
+              : `<div class="empty-soft"><b>ยังตั้งค่าพร้อมเพย์ไม่ได้</b><p class="tiny dim">${e(qrError)}</p></div>`}
+
+            <div style="margin-top:18px">
+              <label class="hint">อัปโหลดสลิปการโอน</label>
+              <input type="file" accept="image/*" id="slip-file" style="margin-top:6px">
+              <div id="slip-preview" style="margin-top:10px"></div>
+              <button class="btn btn-primary btn-block" id="slip-submit" style="margin-top:12px" disabled>ยืนยันการชำระเงิน</button>
+            </div>
+          </div>`}
+      </div>
+
+      <div class="book-card">
+        <div class="eyebrow" style="margin-bottom:10px">สิ่งที่ต้องทำ</div>
+        <ol style="padding-left:18px;line-height:1.9;color:var(--muted);font-size:14px;margin:0">
+          <li>เปิดแอปธนาคาร แล้วสแกน QR ด้านซ้าย</li>
+          <li>โอนตามยอดที่แสดง (ระบบใส่ยอดให้อัตโนมัติ)</li>
+          <li>แคปสลิป แล้วอัปโหลดในหน้านี้</li>
+          <li>รอครูยืนยัน — สถานะจะขึ้น "ยืนยันแล้ว"</li>
+        </ol>
+        <div style="margin-top:16px" class="tiny dim">
+          ติดปัญหาเรื่องการโอน ติดต่อ Line : ${e(s.contact_line || '')}<br>
+          โทร ${e(s.contact_phone || '')}
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  setTimeout(() => {
+    const app = document.getElementById('app');
+    const input = app.querySelector('#slip-file');
+    const submit = app.querySelector('#slip-submit');
+    if (!input || !submit) return;
+    let file = null;
+
+    input.addEventListener('change', () => {
+      file = input.files?.[0] || null;
+      const preview = app.querySelector('#slip-preview');
+      if (!file) { preview.innerHTML = ''; submit.disabled = true; return; }
+      if (!file.type.startsWith('image/')) { toast('กรุณาเลือกไฟล์รูปภาพ', 'error'); file = null; return; }
+      if (file.size > 12 * 1024 * 1024) { toast('ไฟล์ใหญ่เกิน 12MB', 'error'); file = null; return; }
+      preview.innerHTML = `<img class="slip-thumb" src="${URL.createObjectURL(file)}" alt="สลิป">`;
+      submit.disabled = false;
+    });
+
+    submit.addEventListener('click', async () => {
+      if (!file) return;
+      submit.disabled = true;
+      submit.textContent = 'กำลังอัปโหลด…';
+      try {
+        await ctx.data.uploadSlip(order.id, file);
+        toast('ส่งสลิปแล้ว รอครูยืนยัน', 'success');
+        location.hash = `#/checkout/${order.id}`;
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      } catch (err) {
+        submit.disabled = false;
+        submit.textContent = 'ยืนยันการชำระเงิน';
+        toast(err.message || 'อัปโหลดไม่สำเร็จ', 'error');
+      }
+    });
+  }, 0);
+
+  return html;
+}

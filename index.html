@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f1ede5">
+  <meta name="description" content="02._.book — จองคอร์สเรียนคณิตศาสตร์กับครูตัวต่อตัว พร้อมติดตามคะแนนนักเรียนจากชุดข้อสอบจริง">
+  <title>02._.book — จองคอร์สและติดตามคะแนน</title>
+  <link rel="icon" href="./Circle.jpg">
+  <link rel="apple-touch-icon" href="./Circle.jpg">
+  <link rel="preload" href="./assets/fonts/kanit-600-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="./assets/fonts/ibm-plex-sans-thai-400-thai.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="./assets/vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="./assets/styles.css">
+</head>
+<body>
+  <header id="site-header" class="site-header"></header>
+  <main id="app">
+    <div class="page-loader"><span class="spinner"></span></div>
+  </main>
+  <footer id="site-footer" class="site-footer"></footer>
+  <div id="toast-stack" aria-live="polite" aria-atomic="false"></div>
+  <div id="modal-root"></div>
+  <noscript><div style="padding:40px;text-align:center;font-family:sans-serif">เว็บไซต์นี้ต้องเปิดใช้งาน JavaScript</div></noscript>
+  <script src="./assets/vendor/qrcode.js"></script>
+  <script src="./assets/vendor/supabase.js"></script>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
