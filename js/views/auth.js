@@ -24,9 +24,6 @@ export async function renderAuth(_arg, ctx) {
 
       <div id="auth-body"></div>
 
-      <div style="border-top:1px solid var(--book-line);margin-top:18px;padding-top:14px;text-align:center">
-        <a class="tiny dim" href="#/teacher-login">เป็นครู / เจ้าของระบบ? เข้าที่นี่</a>
-      </div>
     </div>
   </div>`;
 

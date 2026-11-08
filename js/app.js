@@ -2,17 +2,14 @@
 
 import { CONFIG } from './config.js';
 import * as data from './data.js';
-import { badge, confirmDialog, emptyState, escapeAttr, sectionHeading, toast } from './ui.js';
+import { badge, closeModal, confirmDialog, emptyState, escapeAttr, openModal, sectionHeading, toast } from './ui.js';
 import { e, formatNumber, longThaiDate, percent as pct, thaiDate, thaiDateTime, avatarTone, initials } from './utils.js';
 import { renderHome } from './views/home.js';
 import { renderCourse } from './views/course.js';
 import { renderCheckout } from './views/checkout.js';
-import { renderAuth, renderTeacherAuth } from './views/auth.js';
-import { renderAccount, renderScores, renderExamDetail } from './views/account.js';
-import { renderAdmin } from './views/admin.js';
-import { renderPortal } from './views/portal.js';
+import { renderAuth } from './views/auth.js';
+import { renderScores, renderExamDetail } from './views/account.js';
 import { renderCoupons, bindCoupons } from './views/coupons.js';
-import { renderStudents } from './views/students.js';
 import { renderCart } from './views/cart.js';
 
 const app = document.getElementById('app');
@@ -51,19 +48,17 @@ function renderHeader() {
   if (!host) return;
   const role = me?.role;
   const links = [];
-  if (role !== 'teacher') {
-    links.push(navLink('/', 'หน้าแรก'));
-    links.push(navLink('/courses', 'คอร์สเรียน'));
-  }
+  links.push(navLink('/', 'หน้าแรก'));
+  links.push(navLink('/courses', 'คอร์สเรียน'));
   if (role === 'parent' || !me) {
     links.push(navLink('/scores', 'คะแนนนักเรียน'));
     links.push(navLink('/coupons', 'บัตรส่วนลด'));
     links.push(navLink('/cart', 'ตะกร้า'));
   }
-  if (role === 'teacher' || role === 'owner') links.push(navLink('/students', 'รายชื่อนักเรียน'));
+
   if (role === 'owner') links.push(navLink('/admin', 'หลังบ้าน'));
   if (role === 'teacher') links.push(navLink('/portal', 'จัดการนักเรียน'));
-  links.push(navLink('/account', 'บัญชีของฉัน'));
+
 
   host.innerHTML = `
   <div class="header-inner">
@@ -75,13 +70,14 @@ function renderHeader() {
     <nav class="main-nav">${links.join('')}</nav>
     <div class="header-actions">
       ${me
-        ? `<a class="user-chip" href="#/account">${avatarHtml(me, 30)}
+        ? `<button class="user-chip" id="profile-btn" title="ข้อมูลของฉัน">${avatarHtml(me, 30)}
              <span class="user-chip__text"><b>${e(me.name || me.email || '')}</b>
-             <span class="tiny dim">${role === 'owner' ? 'เจ้าของระบบ' : role === 'teacher' ? 'ครู' : 'ผู้ปกครอง'}</span></span></a>
-           <button class="btn btn-ghost btn-sm" data-signout>ออก</button>`
+             <span class="tiny dim">ผู้ปกครอง</span></span></button>`
         : `<a class="btn btn-primary btn-sm" href="#/login">เข้าสู่ระบบ</a>`}
     </div>
   </div>`;
+
+  host.querySelector('#profile-btn')?.addEventListener('click', openProfile);
 
   host.querySelector('[data-signout]')?.addEventListener('click', async () => {
     const ok = await confirmDialog({ title: 'ออกจากระบบ', message: 'ต้องการออกจากระบบใช่ไหม?', confirmLabel: 'ออกจากระบบ' });
@@ -113,6 +109,73 @@ function renderFooter() {
   </div>`;
 }
 
+
+/* ── โปรไฟล์ของฉัน (modal) ─────────────────────────────── */
+export function openProfile() {
+  const acc = data.getAccount() || {};
+  openModal({
+    title: 'ข้อมูลของฉัน',
+    size: 'sm',
+    body: `
+      <div class="kv"><span>อีเมล</span><b>${e(acc.email || '')}</b></div>
+      <div class="kv"><span>บทบาท</span><b>ผู้ปกครอง</b></div>
+      <div class="field-row" style="margin-top:10px"><label>ชื่อที่แสดง</label>
+        <input id="pf-name" value="${e(acc.name || '')}" maxlength="80"></div>
+      <div class="field-row"><label>เบอร์โทร</label>
+        <input id="pf-phone" value="${e(acc.phone || '')}" maxlength="32" placeholder="089-123-4567"></div>
+      <div class="field-row"><label>LINE ID</label>
+        <input id="pf-line" value="${e(acc.line_id || '')}" maxlength="60"></div>
+      <button class="btn btn-ghost btn-block btn-sm" id="pf-save">บันทึกข้อมูล</button>
+
+      <div style="border-top:1px solid var(--book-line);margin-top:16px;padding-top:14px">
+        <div style="font-family:var(--brand-font);font-size:15px;margin-bottom:8px">เปลี่ยนรหัสผ่าน</div>
+        <div class="field-row"><label>รหัสผ่านใหม่</label>
+          <input id="pf-pass" type="password" autocomplete="new-password" placeholder="อย่างน้อย 6 ตัวอักษร"></div>
+        <div class="field-row"><label>ยืนยันรหัสผ่านใหม่</label>
+          <input id="pf-pass2" type="password" autocomplete="new-password" placeholder="พิมพ์ซ้ำ"></div>
+        <button class="btn btn-primary btn-block btn-sm" id="pf-pass-save">เปลี่ยนรหัสผ่าน</button>
+      </div>`,
+    footer: `<button class="btn btn-ghost" type="button" data-signout>ออกจากระบบ</button>
+             <button class="btn btn-ghost" type="button" data-modal-close>ปิด</button>`,
+    onMount: (root) => {
+      root.querySelector('#pf-save')?.addEventListener('click', async (ev) => {
+        ev.currentTarget.disabled = true;
+        try {
+          await data.updateAccount({
+            name: root.querySelector('#pf-name').value.trim(),
+            phone: root.querySelector('#pf-phone').value.trim(),
+            line_id: root.querySelector('#pf-line').value.trim(),
+          });
+          toast('บันทึกแล้ว', 'success');
+          renderHeader();
+        } catch (err) { toast(err.message || 'บันทึกไม่สำเร็จ', 'error'); }
+        finally { ev.currentTarget.disabled = false; }
+      });
+      root.querySelector('#pf-pass-save')?.addEventListener('click', async (ev) => {
+        const p1 = root.querySelector('#pf-pass').value;
+        const p2 = root.querySelector('#pf-pass2').value;
+        if (p1.length < 6) { toast('รหัสผ่านอย่างน้อย 6 ตัวอักษร', 'error'); return; }
+        if (p1 !== p2) { toast('รหัสผ่านทั้งสองช่องไม่ตรงกัน', 'error'); return; }
+        ev.currentTarget.disabled = true;
+        try {
+          await data.changePassword(p1);
+          toast('เปลี่ยนรหัสผ่านแล้ว', 'success');
+          root.querySelector('#pf-pass').value = '';
+          root.querySelector('#pf-pass2').value = '';
+        } catch (err) { toast(err.message || 'ไม่สำเร็จ', 'error'); }
+        finally { ev.currentTarget.disabled = false; }
+      });
+      root.querySelector('[data-signout]')?.addEventListener('click', async () => {
+        const ok = await confirmDialog({ title: 'ออกจากระบบ', message: 'ต้องการออกจากระบบใช่ไหม?', confirmLabel: 'ออกจากระบบ' });
+        if (!ok) return;
+        await data.signOut();
+        closeModal();
+        location.hash = '#/';
+      });
+    },
+  });
+}
+
 /* ── router ───────────────────────────────────────────── */
 function parse() {
   const raw = (location.hash || '#/').replace(/^#/, '');
@@ -121,44 +184,12 @@ function parse() {
 }
 
 
-/* ── เลย์เอาต์คอนโซล (แถบด้านข้าง) ─────────────────────── */
-export function consoleLayout({ items = [], title = '', subtitle = '', body = '' }) {
-  const acc = data.getAccount() || {};
-  return `
-  <div class="console__top">
-    <a class="brand brand--default" href="#/admin">
-      <span class="brand-mark brand-mark--sm"><img src="./assets/brand/logo-circle.png" alt=""></span>
-      <span class="brand__words"><span class="brand__name">02._.book</span>
-        <span class="brand__sub">${acc.role === 'owner' ? 'หลังบ้านเจ้าของระบบ' : 'มุมครู'}</span></span>
-    </a>
-    <div class="console__top-right">
-      <span class="tiny dim">${e(acc.name || acc.email || '')}</span>
-      <button class="btn btn-ghost btn-sm" data-signout>ออกจากระบบ</button>
-    </div>
-  </div>
-  <div class="console">
-    <aside class="console__nav">
-      <div class="console__eyebrow">เมนูจัดการ</div>
-      ${items.map((it) => `
-        <a href="${it.href}" class="${it.active ? 'is-active' : ''}"${it.active ? ' aria-current="page"' : ''}>
-          <span>${e(it.label)}</span>
-          ${it.count ? `<span class="count">${e(String(it.count))}</span>` : ''}
-        </a>`).join('')}
-    </aside>
-    <section class="console__main">
-      ${title ? `<h1 class="console__title">${e(title)}</h1>` : ''}
-      ${subtitle ? `<p class="console__sub">${subtitle}</p>` : ''}
-      ${body}
-    </section>
-  </div>`;
-}
 
 const ctx = {
   data, me: null, settings,
   go: (path) => { location.hash = `#${path}`; },
   money, baht, statusBadge, avatarHtml,
   header: renderHeader,
-  consoleLayout,
   courseCard,
 };
 
@@ -168,17 +199,11 @@ const ROUTES = [
   { test: (p) => p.startsWith('/course/'), view: renderCourse, key: 1 },
   { test: (p) => p.startsWith('/checkout/'), view: renderCheckout, key: 1 },
   { test: (p) => p === '/login', view: renderAuth },
-  { test: (p) => p === '/teacher-login', view: renderTeacherAuth },
-  { test: (p) => p === '/account', view: renderAccount, auth: true },
   { test: (p) => p === '/coupons', view: renderCoupons, auth: true, after: (c) => bindCoupons(c) },
   { test: (p) => p === '/cart', view: renderCart, auth: true },
   { test: (p) => p === '/scores', view: renderScores, auth: true },
-  { test: (p) => p === '/students', view: renderStudents, auth: true, role: ['owner', 'teacher'], shell: 'console' },
-  { test: (p) => p.startsWith('/students/'), view: renderStudents, key: 1, auth: true, role: ['owner', 'teacher'], shell: 'console' },
   { test: (p) => p.startsWith('/scores/') && p.includes('/exam/'), view: renderExamDetail, auth: true },
   { test: (p) => p.startsWith('/scores/'), view: renderScores, key: 1, auth: true },
-  { test: (p) => p === '/admin', view: renderAdmin, auth: true, role: 'owner', shell: 'console' },
-  { test: (p) => p === '/portal', view: renderStudents, auth: true, role: ['owner', 'teacher'], shell: 'console' },
 ];
 
 export function courseCard(c) {
