@@ -3641,3 +3641,7 @@ PY
 .check-line { display: flex; align-items: center; gap: 8px; font-size: 13.5px; margin: 2px 0 8px; cursor: pointer; }
 .check-line input { width: auto; }
 .field-row select[multiple] { padding: 8px; }
+
+/* ตารางคูปอง: คอลัมน์สั้นไม่ต้องตัดบรรทัด */
+.book-table th { white-space: nowrap; }
+.coupon-table td:nth-child(2), .coupon-table td:nth-child(4), .coupon-table td:nth-child(5) { white-space: nowrap; }

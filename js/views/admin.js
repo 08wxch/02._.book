@@ -178,7 +178,7 @@ function couponsHtml(coupons, courses, editId, ctx) {
   <div class="book-grid-2">
     <div class="book-card">
       <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">โค้ดทั้งหมด (${coupons.length})</div>
-      ${coupons.length ? `<div class="table-wrap"><table class="book-table">
+      ${coupons.length ? `<div class="table-wrap"><table class="book-table coupon-table">
         <thead><tr><th>โค้ด</th><th>ส่วนลด</th><th>ใช้กับ</th><th>ใช้แล้ว</th><th>สถานะ</th><th></th></tr></thead>
         <tbody>${coupons.map((c) => `<tr>
           <td><b>${e(c.code)}</b><div class="tiny dim">${e(c.note || '')}</div></td>
