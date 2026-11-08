@@ -144,7 +144,7 @@ async function studentDetail(studentId, ctx) {
     subtitle: `${e(report.student?.code || '')}${report.student?.class ? ` · ${e(report.student.class)}` : ''}${report.student?.orgName ? ` · ${e(report.student.orgName)}` : ''}`,
     body: `
       <div class="detail-2col">
-        <div>${studentOverviewHtml(report, ctx, { studentId, backHref: '#/students', backLabel: 'รายชื่อนักเรียน' })}</div>
+        <div>${studentOverviewHtml(report, ctx, { studentId, hideHero: true })}</div>
         <aside class="book-card" style="height:fit-content;position:sticky;top:80px">
           <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:4px">บัญชีผู้ปกครองที่ผูกไว้</div>
           <p class="tiny dim" style="margin:0 0 12px">นักเรียน 1 คนผูกได้มากกว่า 1 บัญชี</p>

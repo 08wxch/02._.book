@@ -182,8 +182,7 @@ export function studentOverviewHtml(report, ctx, opts = {}) {
       </div>
     </div>`).join('');
 
-  return `
-  <div>
+  const heroHtml = opts.hideHero ? '' : `
     <div class="score-hero" style="margin-top:12px">
       <div>
         <h1>${e(report.student?.name || '')}</h1>
@@ -201,7 +200,11 @@ export function studentOverviewHtml(report, ctx, opts = {}) {
             ${delta === null ? '—' : `${delta > 0 ? '+' : ''}${delta}%`}</div>
           ${trendWord ? `<div class="tiny dim">${trendWord}</div>` : ''}</div>
       </div>
-    </div>
+    </div>`;
+
+  return `
+  <div>
+    ${heroHtml}
 
     <div class="book-card line-card" style="margin-bottom:18px">
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">
@@ -250,7 +253,7 @@ export async function renderExamDetail(_arg, ctx) {
   <div class="wrap" style="padding-top:28px">
     <a class="tiny dim" href="#/scores/${encodeURIComponent(studentId)}" style="text-decoration:none">← กลับหน้าคะแนนของ ${e(report.student?.name || 'นักเรียน')}</a>
 
-    <div class="score-hero" style="margin-top:12px">
+    ${opts.hideHero ? '' : `<div class="score-hero" style="margin-top:12px">`}
       <div>
         <h1>${e(exam.title)}</h1>
         <div class="tiny dim">
