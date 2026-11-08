@@ -113,6 +113,8 @@ function renderFooter() {
 /* ── โปรไฟล์ของฉัน (modal) ─────────────────────────────── */
 export function openProfile() {
   const acc = data.getAccount() || {};
+  const dots = (v) => '•'.repeat(Math.max(6, Math.min(14, String(v || '').length || 8)));
+
   openModal({
     title: 'ข้อมูลของฉัน',
     size: 'sm',
@@ -128,16 +130,46 @@ export function openProfile() {
       <button class="btn btn-ghost btn-block btn-sm" id="pf-save">บันทึกข้อมูล</button>
 
       <div style="border-top:1px solid var(--book-line);margin-top:16px;padding-top:14px">
-        <div style="font-family:var(--brand-font);font-size:15px;margin-bottom:8px">เปลี่ยนรหัสผ่าน</div>
-        <div class="field-row"><label>รหัสผ่านใหม่</label>
-          <input id="pf-pass" type="password" autocomplete="new-password" placeholder="อย่างน้อย 6 ตัวอักษร"></div>
-        <div class="field-row"><label>ยืนยันรหัสผ่านใหม่</label>
-          <input id="pf-pass2" type="password" autocomplete="new-password" placeholder="พิมพ์ซ้ำ"></div>
-        <button class="btn btn-primary btn-block btn-sm" id="pf-pass-save">เปลี่ยนรหัสผ่าน</button>
+        <div style="font-family:var(--brand-font);font-size:15px;margin-bottom:8px">รหัสผ่าน</div>
+
+        <div class="pass-row">
+          <input class="input" id="pf-current" readonly
+            data-real="${e(acc.password_plain || '')}" value="${acc.password_plain ? dots(acc.password_plain) : '—'}">
+          <button class="icon-btn" id="pf-eye" type="button" title="ดูรหัสผ่าน" aria-label="ดูรหัสผ่าน"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          <button class="icon-btn" id="pf-pencil" type="button" title="เปลี่ยนรหัสผ่าน" aria-label="เปลี่ยนรหัสผ่าน"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+        </div>
+        <p class="hint" style="margin-top:6px">กดรูปตาเพื่อดูรหัสปัจจุบัน · กดรูปดินสอเมื่อต้องการเปลี่ยน</p>
+
+        <div id="pf-change" style="display:none;margin-top:12px">
+          <div class="field-row"><label>รหัสผ่านใหม่</label>
+            <input id="pf-pass" type="password" autocomplete="new-password" placeholder="อย่างน้อย 6 ตัวอักษร"></div>
+          <div class="field-row"><label>ยืนยันรหัสผ่านใหม่</label>
+            <input id="pf-pass2" type="password" autocomplete="new-password" placeholder="พิมพ์รหัสใหม่อีกครั้ง"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" id="pf-cancel" style="flex:1">ยกเลิก</button>
+            <button class="btn btn-primary btn-sm" id="pf-pass-save" style="flex:1">บันทึก</button>
+          </div>
+        </div>
       </div>`,
     footer: `<button class="btn btn-ghost" type="button" data-signout>ออกจากระบบ</button>
              <button class="btn btn-ghost" type="button" data-modal-close>ปิด</button>`,
     onMount: (root) => {
+      const current = root.querySelector('#pf-current');
+      root.querySelector('#pf-eye')?.addEventListener('click', () => {
+        const real = current.dataset.real || '';
+        if (!real) return;
+        current.value = current.value.includes('•') ? real : dots(real);
+      });
+      root.querySelector('#pf-pencil')?.addEventListener('click', () => {
+        const box = root.querySelector('#pf-change');
+        box.style.display = box.style.display === 'none' ? '' : 'none';
+      });
+      root.querySelector('#pf-cancel')?.addEventListener('click', () => {
+        root.querySelector('#pf-change').style.display = 'none';
+        root.querySelector('#pf-pass').value = '';
+        root.querySelector('#pf-pass2').value = '';
+      });
+
       root.querySelector('#pf-save')?.addEventListener('click', async (ev) => {
         ev.currentTarget.disabled = true;
         try {
@@ -151,6 +183,7 @@ export function openProfile() {
         } catch (err) { toast(err.message || 'บันทึกไม่สำเร็จ', 'error'); }
         finally { ev.currentTarget.disabled = false; }
       });
+
       root.querySelector('#pf-pass-save')?.addEventListener('click', async (ev) => {
         const p1 = root.querySelector('#pf-pass').value;
         const p2 = root.querySelector('#pf-pass2').value;
@@ -159,12 +192,16 @@ export function openProfile() {
         ev.currentTarget.disabled = true;
         try {
           await data.changePassword(p1);
-          toast('เปลี่ยนรหัสผ่านแล้ว', 'success');
+          current.dataset.real = p1;
+          current.value = dots(p1);
           root.querySelector('#pf-pass').value = '';
           root.querySelector('#pf-pass2').value = '';
+          root.querySelector('#pf-change').style.display = 'none';
+          toast('เปลี่ยนรหัสผ่านแล้ว', 'success');
         } catch (err) { toast(err.message || 'ไม่สำเร็จ', 'error'); }
         finally { ev.currentTarget.disabled = false; }
       });
+
       root.querySelector('[data-signout]')?.addEventListener('click', async () => {
         const ok = await confirmDialog({ title: 'ออกจากระบบ', message: 'ต้องการออกจากระบบใช่ไหม?', confirmLabel: 'ออกจากระบบ' });
         if (!ok) return;

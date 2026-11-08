@@ -23,24 +23,29 @@ export async function renderCoupons(_arg, ctx) {
   const available = mine.filter((c) => c.status === 'available' && c.active && !isExpired(c));
   const history = mine.filter((c) => !(c.status === 'available' && c.active && !isExpired(c)));
 
+  const stateChip = (c) => (c.status === 'used'
+    ? '<span class="chip chip--mute">ใช้แล้ว</span>'
+    : isExpired(c) ? '<span class="chip chip--bad">หมดอายุ</span>'
+      : '<span class="chip chip--ok">พร้อมใช้</span>');
+
   const card = (c) => `
     <article class="coupon-card ${c.status === 'used' ? 'is-used' : ''} ${c.image_url ? 'has-image' : ''}">
       ${c.image_url
-        ? `<img class="coupon-card__img" src="${e(c.image_url)}" alt="${e(c.title || c.code)}" loading="lazy">`
+        ? `<img class="coupon-card__img" src="${e(c.image_url)}" alt="${e(c.title || c.code)}" loading="lazy">
+           <div class="coupon-card__state">${stateChip(c)}</div>`
         : `<div class="coupon-card__body">
-             <div class="coupon-card__title">${e(c.title || c.code)}</div>
-             <div class="coupon-card__value">${c.kind === 'percent' ? `ลด ${c.value}%` : `ลด ${ctx.baht(c.value)}`}</div>
-             <div class="tiny dim">${e(scope(c))}</div>
-             ${c.min_amount ? `<div class="tiny dim">ยอดขั้นต่ำ ${ctx.baht(c.min_amount)}</div>` : ''}
-             ${c.note ? `<div class="tiny dim">${e(c.note)}</div>` : ''}
-             <div class="tiny dim">${c.expires_at ? `ใช้ได้ถึง ${e(thaiDate(c.expires_at))}` : 'ไม่มีวันหมดอายุ'}</div>
+             <div class="coupon-card__text">
+               <div class="coupon-card__title">${e(c.title || c.code)}</div>
+               <div class="tiny dim">${e(scope(c))}</div>
+               ${c.min_amount ? `<div class="tiny dim">ยอดขั้นต่ำ ${ctx.baht(c.min_amount)}</div>` : ''}
+               ${c.note ? `<div class="tiny dim">${e(c.note)}</div>` : ''}
+               <div class="tiny dim">${c.expires_at ? `ใช้ได้ถึง ${e(thaiDate(c.expires_at))}` : 'ไม่มีวันหมดอายุ'}</div>
+             </div>
+             <div class="coupon-card__right">
+               <div class="coupon-card__value">${c.kind === 'percent' ? `${c.value}%` : ctx.baht(c.value)}</div>
+               ${stateChip(c)}
+             </div>
            </div>`}
-      <div class="coupon-card__state">
-        ${c.status === 'used'
-          ? '<span class="chip chip--mute">ใช้แล้ว</span>'
-          : isExpired(c) ? '<span class="chip chip--bad">หมดอายุ</span>'
-          : '<span class="chip chip--ok">พร้อมใช้</span>'}
-      </div>
     </article>`;
 
   return `

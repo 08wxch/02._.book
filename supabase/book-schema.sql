@@ -1147,3 +1147,72 @@ end;
 $$;
 
 grant execute on function public.bk_set_parent_orgs(uuid, text[]) to authenticated;
+
+-- เก็บชื่อคูปองไว้กับออเดอร์ (แสดงในหน้าชำระเงิน)
+alter table public.bk_orders add column if not exists coupon_title text default '';
+
+create or replace function public.bk_create_order(
+  p_course_id uuid, p_student_name text, p_note text, p_coupon_code text default null
+) returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_course public.bk_courses;
+  v_sold int;
+  v_claim public.bk_coupon_claims;
+  v_coupon public.bk_coupons;
+  v_discount int := 0;
+  v_amount int;
+  v_order public.bk_orders;
+begin
+  if v_uid is null then raise exception 'ต้องเข้าสู่ระบบก่อน'; end if;
+
+  select * into v_course from public.bk_courses where id = p_course_id and active = true;
+  if v_course.id is null then raise exception 'ไม่พบคอร์สนี้'; end if;
+
+  if v_course.seats > 0 then
+    select count(*) into v_sold from public.bk_orders
+      where course_id = v_course.id and status in ('pending_confirm','confirmed');
+    if v_sold >= v_course.seats then raise exception 'คอร์สนี้เต็มแล้ว'; end if;
+  end if;
+
+  if coalesce(trim(p_coupon_code), '') <> '' then
+    select c.* into v_coupon from public.bk_coupons c
+      where upper(c.code) = upper(trim(p_coupon_code)) and c.active limit 1;
+    if v_coupon.id is null then raise exception 'โค้ดส่วนลดไม่ถูกต้อง'; end if;
+    if array_length(v_coupon.course_ids, 1) is not null and not (v_course.id = any(v_coupon.course_ids)) then
+      raise exception 'โค้ดนี้ใช้กับคอร์สนี้ไม่ได้';
+    end if;
+
+    select * into v_claim from public.bk_coupon_claims
+      where coupon_id = v_coupon.id and user_id = v_uid and status = 'available' limit 1;
+    if v_claim.id is null then raise exception 'ยังไม่ได้แลกโค้ดนี้ หรือใช้ไปแล้ว'; end if;
+
+    if v_course.price >= v_coupon.min_amount then
+      if v_coupon.kind = 'percent' then
+        v_discount := floor(v_course.price * v_coupon.value / 100.0)::int;
+      else
+        v_discount := least(v_coupon.value, v_course.price);
+      end if;
+    else
+      raise exception 'คอร์สนี้ยังไม่ถึงยอดขั้นต่ำของโค้ด (ขั้นต่ำ % บาท)', v_coupon.min_amount;
+    end if;
+  end if;
+
+  v_amount := greatest(v_course.price - v_discount, 0);
+
+  insert into public.bk_orders (user_id, course_id, course_title, student_name, amount, note,
+                                coupon_code, coupon_title, discount, status)
+  values (v_uid, v_course.id, v_course.title, trim(coalesce(p_student_name,'')), v_amount,
+          trim(coalesce(p_note,'')), coalesce(v_coupon.code,''),
+          coalesce(nullif(v_coupon.title,''), v_coupon.code, ''), v_discount, 'pending_payment')
+  returning * into v_order;
+
+  if v_claim.id is not null then
+    update public.bk_coupon_claims
+      set status = 'used', used_at = now(), order_id = v_order.id
+      where id = v_claim.id;
+  end if;
+
+  return to_jsonb(v_order);
+end;
+$$;
