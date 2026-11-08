@@ -12,6 +12,7 @@ import { renderAccount, renderScores, renderExamDetail } from './views/account.j
 import { renderAdmin } from './views/admin.js';
 import { renderPortal } from './views/portal.js';
 import { renderCoupons, bindCoupons } from './views/coupons.js';
+import { renderStudents } from './views/students.js';
 
 const app = document.getElementById('app');
 let me = null;
@@ -169,7 +170,8 @@ const ROUTES = [
   { test: (p) => p === '/account', view: renderAccount, auth: true },
   { test: (p) => p === '/coupons', view: renderCoupons, auth: true, after: (c) => bindCoupons(c) },
   { test: (p) => p === '/scores', view: renderScores, auth: true },
-  { test: (p) => p === '/students', view: renderScores, auth: true, role: ['owner', 'teacher'], shell: 'console' },
+  { test: (p) => p === '/students', view: renderStudents, auth: true, role: ['owner', 'teacher'], shell: 'console' },
+  { test: (p) => p.startsWith('/students/'), view: renderStudents, key: 1, auth: true, role: ['owner', 'teacher'], shell: 'console' },
   { test: (p) => p.startsWith('/scores/') && p.includes('/exam/'), view: renderExamDetail, auth: true },
   { test: (p) => p.startsWith('/scores/'), view: renderScores, key: 1, auth: true },
   { test: (p) => p === '/admin', view: renderAdmin, auth: true, role: 'owner', shell: 'console' },

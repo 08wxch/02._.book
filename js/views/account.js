@@ -141,6 +141,15 @@ export async function renderScores(studentId, ctx) {
       <a class="btn btn-ghost btn-sm" href="#/scores">ย้อนกลับ</a></div></div>`;
   }
 
+  return `<div class="wrap" style="padding-top:28px">
+    <a class="tiny dim" href="#/scores" style="text-decoration:none">← รายชื่อนักเรียน</a>
+    <div style="margin-top:12px">${studentOverviewHtml(report, ctx, { studentId })}</div>
+  </div>`;
+}
+
+export function studentOverviewHtml(report, ctx, opts = {}) {
+  const backHref = opts.backHref || '#/scores';
+  const backLabel = opts.backLabel || 'ย้อนกลับ';
   const exams = (report.exams || []).slice().sort((a, b) => new Date(a.date) - new Date(b.date));
   const scored = exams.filter((x) => x.percent !== null && x.percent !== undefined);
   const avg = scored.length ? Math.round(scored.reduce((s, x) => s + Number(x.percent), 0) / scored.length) : null;
@@ -164,9 +173,7 @@ export async function renderScores(studentId, ctx) {
     </div>`).join('');
 
   return `
-  <div class="wrap" style="padding-top:28px">
-    <a class="tiny dim" href="#/scores" style="text-decoration:none">← ${isParent ? 'รายชื่อนักเรียน' : 'ย้อนกลับ'}</a>
-
+  <div>
     <div class="score-hero" style="margin-top:12px">
       <div>
         <h1>${e(report.student?.name || '')}</h1>

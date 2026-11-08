@@ -3664,3 +3664,40 @@ body[data-shell="console"] .site-header { display: none; }
   background: color-mix(in srgb, var(--book-paper) 92%, transparent);
 }
 .console__top-right { display: flex; align-items: center; gap: 12px; }
+
+/* ══ รายชื่อนักเรียน + ผู้ปกครอง ════════════════════════ */
+.student-row {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 12px 10px; border-bottom: 1px solid var(--book-line);
+}
+.student-row:last-child { border-bottom: 0; }
+.student-row__main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 240px; text-decoration: none; color: inherit; }
+.student-row__avatar {
+  width: 38px; height: 38px; border-radius: 50%; flex: 0 0 auto;
+  display: grid; place-items: center; background: var(--mint-soft);
+  font-family: var(--brand-font); font-size: 16px;
+}
+.student-row__name { display: flex; flex-direction: column; gap: 2px; }
+.student-row__parents { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; min-width: 190px; }
+.parent-chip {
+  border: 1px solid var(--book-line); background: var(--book-card); border-radius: 999px;
+  padding: 4px 11px; font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
+}
+.parent-chip:hover { background: var(--mint-soft); }
+
+.detail-2col { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+@media (max-width: 980px) { .detail-2col { grid-template-columns: 1fr; } }
+
+.parent-line {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--book-line);
+}
+.parent-line:last-child { border-bottom: 0; }
+.pick-row {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left;
+  padding: 10px 12px; border: 1px solid var(--book-line); border-radius: 10px;
+  background: var(--book-card); font: inherit; cursor: pointer; margin-bottom: 6px;
+}
+.pick-row:hover { background: var(--mint-soft); }
+.kv { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 13.5px; }
+.kv span { color: var(--muted); }
