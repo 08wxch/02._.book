@@ -828,7 +828,8 @@ begin
   from public.app_state s, jsonb_array_elements(coalesce(s.data->'teachers','[]'::jsonb)) t
   where s.id = 'main'
     and (lower(t->>'code') = lower(trim(coalesce(p_code,'')))
-         or lower(coalesce(t->>'email','')) = lower(trim(coalesce(p_code,''))))
+         or lower(coalesce(t->>'email','')) = lower(trim(coalesce(p_code,'')))
+         or lower(coalesce(t->>'name','')) = lower(trim(coalesce(p_code,''))))
   limit 1;
 
   if v_t is null then raise exception 'ไม่พบรหัสครูนี้ในรายชื่อบุคลากร'; end if;

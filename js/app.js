@@ -178,7 +178,7 @@ const ROUTES = [
   { test: (p) => p.startsWith('/scores/') && p.includes('/exam/'), view: renderExamDetail, auth: true },
   { test: (p) => p.startsWith('/scores/'), view: renderScores, key: 1, auth: true },
   { test: (p) => p === '/admin', view: renderAdmin, auth: true, role: 'owner', shell: 'console' },
-  { test: (p) => p === '/portal', view: renderPortal, auth: true, role: 'teacher', shell: 'console' },
+  { test: (p) => p === '/portal', view: renderStudents, auth: true, role: ['owner', 'teacher'], shell: 'console' },
 ];
 
 export function courseCard(c) {

@@ -197,6 +197,7 @@ function coursesHtml(courses, editId, ctx) {
 /* ── บัตรส่วนลด ───────────────────────────────────────── */
 function couponsHtml(coupons, courses, editId, ctx) {
   const editing = coupons.find((c) => c.id === editId);
+  const showForm = Boolean(editing) || ctx.route?.query.get('new') === '1';
   const courseName = (id) => courses.find((c) => c.id === id)?.title || '—';
   const scopeText = (c) => ((c.course_ids || []).length
     ? c.course_ids.map(courseName).join(' · ')
@@ -204,7 +205,11 @@ function couponsHtml(coupons, courses, editId, ctx) {
   const valueText = (c) => (c.kind === 'percent' ? `ลด ${c.value}%` : `ลด ${ctx.baht(c.value)}`);
 
   return `
-  <div class="book-grid-2">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+    <div class="tiny dim">ทั้งหมด ${coupons.length} โค้ด</div>
+    <a class="btn btn-primary btn-sm" href="#/admin?tab=coupons&new=1">+ สร้างบัตรส่วนลด</a>
+  </div>
+  <div class="${showForm ? 'book-grid-2' : ''}">
     <div class="book-card">
       <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">โค้ดทั้งหมด (${coupons.length})</div>
       ${coupons.length ? `<div class="table-wrap"><table class="book-table coupon-table">
@@ -227,8 +232,11 @@ function couponsHtml(coupons, courses, editId, ctx) {
       </table></div>` : `<p class="tiny dim">ยังไม่มีโค้ดส่วนลด</p>`}
     </div>
 
-    <div class="book-card">
-      <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">${editing ? 'แก้ไขโค้ด' : 'สร้างโค้ดใหม่'}</div>
+    ${showForm ? `<div class="book-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="font-family:var(--brand-font);font-size:16px">${editing ? 'แก้ไขโค้ด' : 'สร้างโค้ดใหม่'}</div>
+        <a class="btn btn-ghost btn-sm" href="#/admin?tab=coupons">ปิด</a>
+      </div>
       <input type="hidden" id="cp-id" value="${editing ? editing.id : ''}">
       <div class="field-row"><label>โค้ด (ตัวอักษร/ตัวเลข)</label>
         <div style="display:flex;gap:8px">
@@ -284,7 +292,7 @@ function couponsHtml(coupons, courses, editId, ctx) {
         <button class="btn btn-primary" id="cp-save">${editing ? 'บันทึกการแก้ไข' : 'สร้างโค้ด'}</button>
         ${editing ? `<a class="btn btn-ghost" href="#/admin?tab=coupons">ยกเลิก</a>` : ''}
       </div>
-    </div>
+    </div>` : ''}
   </div>`;
 }
 
