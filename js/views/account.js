@@ -2,7 +2,8 @@
 
 import { CONFIG } from '../config.js';
 import { toast } from '../ui.js';
-import { e, thaiDate, thaiDateTime, longThaiDate } from '../utils.js';
+import { e, thaiDate, thaiDateTime } from '../utils.js';
+import { hydrateMath, mathAttr, renderMathInHtml } from '../latex.js';
 
 export async function renderAccount(_arg, ctx) {
   const acc = ctx.me;
@@ -12,7 +13,6 @@ export async function renderAccount(_arg, ctx) {
 
   const html = `
   <div class="wrap" style="padding-top:30px">
-    <div class="eyebrow">MY ACCOUNT</div>
     <h1 style="font-family:var(--brand-font);font-size:28px;margin:8px 0 18px">
       ${acc.role === 'parent' ? 'บัญชีของฉัน' : acc.role === 'owner' ? 'บัญชีเจ้าของระบบ' : 'บัญชีครู'}
     </h1>
@@ -25,7 +25,6 @@ export async function renderAccount(_arg, ctx) {
 
     <div class="book-grid-2">
       <div class="book-card">
-        <div class="eyebrow" style="margin-bottom:12px">ข้อมูลติดต่อ</div>
         <div class="field-row"><label>ชื่อที่แสดง</label>
           <input id="acc-name" value="${e(acc.name || '')}" maxlength="80"></div>
         <div class="field-row"><label>เบอร์โทร</label>
@@ -37,7 +36,6 @@ export async function renderAccount(_arg, ctx) {
       </div>
 
       <div class="book-card">
-        <div class="eyebrow" style="margin-bottom:12px">คอร์สที่ซื้อ</div>
         ${orders.length ? `<div class="table-wrap"><table class="book-table">
           <thead><tr><th>คอร์ส</th><th>ผู้เรียน</th><th>ยอด</th><th>สถานะ</th><th></th></tr></thead>
           <tbody>${orders.map((o) => `<tr>
@@ -59,7 +57,6 @@ export async function renderAccount(_arg, ctx) {
     <div class="book-card" style="margin-top:20px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
         <div>
-          <div class="eyebrow">MY STUDENTS</div>
           <div style="font-family:var(--brand-font);font-size:18px;margin-top:6px">บุตรหลานของฉัน (${links.length})</div>
         </div>
         <a class="btn btn-primary btn-sm" href="#/scores">ดูคะแนนนักเรียน</a>
@@ -98,7 +95,7 @@ export async function renderAccount(_arg, ctx) {
   return html;
 }
 
-/* ── หน้าคะแนนนักเรียน ─────────────────────────────────── */
+/* ── หน้าคะแนนนักเรียน (ภาพรวม) ─────────────────────────── */
 export async function renderScores(studentId, ctx) {
   if (ctx.me?.role === 'teacher') { location.hash = '#/portal'; return ''; }
 
@@ -120,7 +117,6 @@ export async function renderScores(studentId, ctx) {
     if (isParent) {
       if (students.length === 1) { location.hash = `#/scores/${encodeURIComponent(students[0].id)}`; return ''; }
       return `<div class="wrap" style="padding-top:34px">
-        <div class="eyebrow">SCORES</div>
         <h1 style="font-family:var(--brand-font);font-size:26px;margin:8px 0 6px">เลือกนักเรียน</h1>
         <p class="tiny dim" style="margin:0 0 18px">ดูคะแนนและข้อที่ผิดของบุตรหลานแต่ละคน</p>
         <div class="course-grid">
@@ -128,7 +124,8 @@ export async function renderScores(studentId, ctx) {
             <div class="course-card__body" style="padding:20px">
               <div style="font-family:var(--brand-font);font-size:19px">${e(s.name || s.id)}</div>
               <div class="tiny dim">${e(s.code || '')}</div>
-              <div class="course-card__foot"><span class="tiny dim">ดูคะแนน &amp; ข้อที่ผิด</span><span class="seat-badge">เปิด</span></div>
+              <div class="course-card__foot"><span class="tiny dim">ดูคะแนน &amp; ข้อที่ผิด</span>
+                <span class="seat-badge">เปิด</span></div>
             </div>
           </a>`).join('')}
         </div>
@@ -149,17 +146,8 @@ export async function renderScores(studentId, ctx) {
   const avg = scored.length ? Math.round(scored.reduce((s, x) => s + Number(x.percent), 0) / scored.length) : null;
   const first = scored[0];
   const last = scored[scored.length - 1];
-  const delta = first && last && scored.length > 1 ? Number(last.percent) - Number(first.percent) : null;
-  const best = scored.reduce((m, x) => Math.max(m, Number(x.percent)), 0);
-  const low = scored.reduce((m, x) => Math.min(m, Number(x.percent)), 100);
-
-  const bars = scored.map((x) => {
-    const p = Number(x.percent);
-    const cls = p === best ? ' is-best' : p === low && scored.length > 1 ? ' is-low' : '';
-    return `<div class="bar${cls}" style="height:${Math.max(8, (p / 100) * 100)}%" title="${e(x.title)} · ${p}%">
-      <em>${p}</em></div>`;
-  }).join('');
-  const axis = scored.map((x) => `<span>${x.date ? e(thaiDate(x.date)) : ''}</span>`).join('');
+  const delta = first && last && scored.length > 1 ? Math.round(Number(last.percent) - Number(first.percent)) : null;
+  const trendWord = delta === null ? '' : delta > 0 ? 'ดีขึ้น' : delta < 0 ? 'ลดลง' : 'คงที่';
 
   const rows = exams.slice().reverse().map((x) => `
     <div class="exam-item">
@@ -171,18 +159,9 @@ export async function renderScores(studentId, ctx) {
         ${x.showScore
           ? `<div class="exam-score">${x.score}/${x.max}<small>${x.percent}%</small></div>`
           : `<div class="tiny dim">ครูยังไม่ประกาศคะแนน</div>`}
-        <a class="btn btn-ghost btn-sm" href="#/scores/${encodeURIComponent(studentId)}?exam=${encodeURIComponent(x.examId)}">ดูข้อที่ผิด</a>
+        <a class="btn btn-ghost btn-sm" href="#/scores/${encodeURIComponent(studentId)}/exam/${encodeURIComponent(x.examId)}">ดูข้อที่ผิด →</a>
       </div>
     </div>`).join('');
-
-  const examParam = ctx.route?.query.get('exam');
-  const detail = examParam ? exams.find((x) => x.examId === examParam) : null;
-  const detailQs = detail?.questions || [];
-  const detailRight = detailQs.filter((q) => isAnswerRight(q, detail.showSolutions)).length;
-  const detailBlank = detailQs.filter((q) => String(q.answer ?? '') === '').length;
-  const detailRows = detail && detail.showSolutions
-    ? detailQs.map((q, i) => questionRow(q, i, detail.showSolutions)).join('')
-    : '';
 
   return `
   <div class="wrap" style="padding-top:28px">
@@ -190,7 +169,6 @@ export async function renderScores(studentId, ctx) {
 
     <div class="score-hero" style="margin-top:12px">
       <div>
-        <div class="eyebrow">STUDENT SCORES</div>
         <h1>${e(report.student?.name || '')}</h1>
         <div class="tiny dim">
           ${report.student?.code ? `รหัส ${e(report.student.code)}` : ''}
@@ -199,68 +177,165 @@ export async function renderScores(studentId, ctx) {
         </div>
       </div>
       <div class="score-kpis">
-        <div class="score-kpi"><div class="k">ทำแล้ว</div><div class="v">${exams.length}</div></div>
-        <div class="score-kpi"><div class="k">เฉลี่ย</div><div class="v">${avg === null ? '—' : `${avg}%`}</div></div>
-        <div class="score-kpi"><div class="k">พัฒนาการ</div>
-          <div class="v ${delta === null ? '' : delta >= 0 ? 'up' : 'down'}">
-            ${delta === null ? '—' : `${delta >= 0 ? '+' : ''}${delta}%`}</div></div>
+        <div class="score-kpi"><div class="k">ชุดที่ทำแล้ว</div><div class="v">${exams.length}</div></div>
+        <div class="score-kpi"><div class="k">คะแนนเฉลี่ย</div><div class="v">${avg === null ? '—' : `${avg}%`}</div></div>
+        <div class="score-kpi"><div class="k">${scored.length > 1 ? 'พัฒนาการ (ชุดแรก→ล่าสุด)' : 'พัฒนาการ'}</div>
+          <div class="v ${delta === null ? '' : delta > 0 ? 'up' : delta < 0 ? 'down' : ''}">
+            ${delta === null ? '—' : `${delta > 0 ? '+' : ''}${delta}%`}</div>
+          ${trendWord ? `<div class="tiny dim">${trendWord}</div>` : ''}</div>
       </div>
     </div>
 
-    <div class="book-card chart-card" style="margin-bottom:18px">
-      <div class="eyebrow" style="margin-bottom:4px">พัฒนาการตามลำดับที่ทำ</div>
-      <div class="tiny dim">จากชุดเก่าสุด → ล่าสุด (ตัวเลขคือเปอร์เซ็นต์ที่ได้)</div>
+    <div class="book-card line-card" style="margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">
+        <div style="font-family:var(--brand-font);font-size:16px">เส้นพัฒนาการ</div>
+        <div class="tiny dim">เปอร์เซ็นต์ที่ได้ในแต่ละชุด เรียงจากเก่าสุด → ล่าสุด</div>
+      </div>
       ${scored.length
-        ? `<div class="chart-bars">${bars}</div><div class="chart-axis">${axis}</div>`
-        : `<p class="tiny dim" style="padding:16px 0">ยังไม่มีชุดที่ประกาศคะแนน</p>`}
+        ? lineChart(scored)
+        : `<p class="tiny dim" style="padding:16px 0">ยังไม่มีชุดที่ครูประกาศคะแนน</p>`}
     </div>
 
-    <div class="book-card" style="margin-bottom:${detail ? '18px' : '0'}">
-      <div class="eyebrow" style="margin-bottom:4px">ประวัติการทำข้อสอบ (${exams.length} ชุด)</div>
-      ${exams.length ? `<div class="exam-list">${rows}</div>` : `<p class="tiny dim">ยังไม่มีประวัติการทำข้อสอบ</p>`}
-    </div>
-
-    ${detail ? `
     <div class="book-card">
-      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start">
-        <div>
-          <div class="eyebrow">EXAM DETAIL</div>
-          <div style="font-family:var(--brand-font);font-size:20px;margin-top:6px">${e(detail.title)}</div>
-          <div class="tiny dim">${e(detail.subject || '')}${detail.teacherName ? ` · ${e(detail.teacherName)}` : ''}${detail.date ? ` · ${e(thaiDate(detail.date))}` : ''}</div>
-        </div>
-        ${detail.showScore ? `<div class="exam-score" style="font-size:26px">${detail.score}/${detail.max}<small>${detail.percent}%</small></div>` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">
+        <div style="font-family:var(--brand-font);font-size:16px">ชุดข้อสอบที่เคยทำ (${exams.length})</div>
+        <div class="tiny dim">กด "ดูข้อที่ผิด" เพื่อเปิดดูทีละข้อ</div>
       </div>
-      ${detail.showSolutions ? `<div class="q-meta" style="margin-top:14px">
-        <span class="seat-badge" style="background:var(--green-soft);color:var(--green);border-color:transparent">ตอบถูก ${detailRight} ข้อ</span>
-        <span class="seat-badge" style="background:var(--red-soft);color:var(--red);border-color:transparent">ตอบผิด ${detailQs.length - detailRight - detailBlank} ข้อ</span>
-        <span class="seat-badge">ไม่ได้ตอบ ${detailBlank} ข้อ</span>
-        <span class="seat-badge">ทั้งหมด ${detailQs.length} ข้อ</span>
-      </div>` : ''}
-      <div style="margin-top:16px">
-        ${detail.showSolutions
-          ? detailRows
-          : `<p class="tiny dim">ครูยังไม่เปิดให้ดูเฉลยของชุดนี้</p>`}
-      </div>
-    </div>` : ''}
+      ${exams.length ? `<div class="exam-list" style="margin-top:8px">${rows}</div>` : `<p class="tiny dim">ยังไม่มีประวัติการทำข้อสอบ</p>`}
+    </div>
   </div>`;
 }
 
+/* ── หน้าโจทย์ของชุดสอบหนึ่งชุด (entry แยก) ───────────── */
+export async function renderExamDetail(_arg, ctx) {
+  const parts = (ctx.route?.path || '').split('/').filter(Boolean); // scores / :student / exam / :exam
+  const studentId = decodeURIComponent(parts[1] || '');
+  const examId = decodeURIComponent(parts[3] || '');
+  if (!studentId || !examId) { location.hash = '#/scores'; return ''; }
 
+  const report = await ctx.data.studentReport(studentId);
+  const exam = (report?.exams || []).find((x) => x.examId === examId);
+  if (!report || !exam) {
+    return `<div class="wrap" style="padding-top:40px"><div class="empty-soft"><b>ไม่พบชุดข้อสอบนี้</b>
+      <a class="btn btn-ghost btn-sm" href="#/scores/${encodeURIComponent(studentId)}">ย้อนกลับ</a></div></div>`;
+  }
+
+  const qs = exam.questions || [];
+  const right = qs.filter((q) => isAnswerRight(q, exam.showSolutions)).length;
+  const blank = qs.filter((q) => String(q.answer ?? '') === '').length;
+  const wrong = qs.length - right - blank;
+
+  const runMath = () => hydrateMath(document.getElementById('app') || document);
+  setTimeout(runMath, 0);
+  setTimeout(runMath, 600);
+
+  return `
+  <div class="wrap" style="padding-top:28px">
+    <a class="tiny dim" href="#/scores/${encodeURIComponent(studentId)}" style="text-decoration:none">← กลับหน้าคะแนนของ ${e(report.student?.name || 'นักเรียน')}</a>
+
+    <div class="score-hero" style="margin-top:12px">
+      <div>
+        <h1>${e(exam.title)}</h1>
+        <div class="tiny dim">
+          ${e(exam.subject || '')}${exam.topic ? ` · ${e(exam.topic)}` : ''}
+          ${exam.teacherName ? ` · ${e(exam.teacherName)}` : ''}
+          ${exam.date ? ` · ส่งเมื่อ ${e(thaiDate(exam.date))}` : ''}
+        </div>
+      </div>
+      ${exam.showScore
+        ? `<div class="exam-score" style="font-size:26px">${exam.score}/${exam.max}<small>${exam.percent}%</small></div>`
+        : ''}
+    </div>
+
+    ${qs.length ? `<div class="q-meta" style="margin-bottom:16px">
+      <span class="chip chip--ok">ตอบถูก ${right} ข้อ</span>
+      <span class="chip chip--bad">ตอบผิด ${wrong} ข้อ</span>
+      <span class="chip chip--mute">ไม่ได้ตอบ ${blank} ข้อ</span>
+      <span class="chip chip--mute">ทั้งหมด ${qs.length} ข้อ</span>
+    </div>` : ''}
+
+    ${!exam.showSolutions
+      ? `<div class="empty-soft"><b>ครูยังไม่เปิดให้ดูเฉลยของชุดนี้</b>
+           <p class="tiny dim" style="margin:0">พอครูประกาศผลแล้ว กลับมาดูได้อีกครั้ง</p></div>`
+      : `<div id="question-list">${qs.map((q, i) => questionCard(q, i)).join('')}</div>`}
+  </div>`;
+}
+
+/* ── กราฟเส้น (SVG) ───────────────────────────────────── */
+function lineChart(points) {
+  const W = 640, H = 190, padL = 40, padR = 26, padTop = 30, padBottom = 30;
+  const n = points.length;
+  const values = points.map((p) => Number(p.percent));
+  const rawMax = Math.max(...values);
+  const rawMin = Math.min(...values);
+
+  // ปรับช่วงแกนให้เห็นความเปลี่ยนแปลงชัด ๆ (ไม่ตรึง 0–100)
+  let hi = Math.min(100, Math.ceil((rawMax + 8) / 5) * 5);
+  let lo = Math.max(0, Math.floor((rawMin - 8) / 5) * 5);
+  if (hi - lo < 20) { hi = Math.min(100, lo + 20); lo = Math.max(0, hi - 20); }
+  if (hi === lo) hi = Math.min(100, lo + 10);
+
+  const stepX = n > 1 ? (W - padL - padR) / (n - 1) : 0;
+  const yOf = (v) => padTop + (1 - (v - lo) / (hi - lo)) * (H - padTop - padBottom);
+  const xOf = (i) => padL + i * stepX;
+
+  const pts = points.map((p, i) => ({
+    x: xOf(i), y: yOf(Number(p.percent)), v: Number(p.percent),
+    label: p.date ? thaiDate(p.date) : '', title: p.title,
+  }));
+
+  const best = Math.max(...pts.map((p) => p.v));
+  const low = Math.min(...pts.map((p) => p.v));
+  const line = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const area = `${padL},${(H - padBottom).toFixed(1)} ${line} ${(W - padR).toFixed(1)},${(H - padBottom).toFixed(1)}`;
+  const ticks = [lo, Math.round((lo + hi) / 2), hi];
+  const grid = ticks.map((v) => {
+    const y = yOf(v);
+    return `<line class="grid-line" x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}"/>
+      <text class="axis-label" x="${padL - 8}" y="${(y + 3).toFixed(1)}" text-anchor="end">${v}</text>`;
+  }).join('');
+
+  const labels = pts.map((p) => {
+    const above = p.y > padTop + 16;
+    return `<text class="val" x="${p.x.toFixed(1)}" y="${(above ? p.y - 11 : p.y + 18).toFixed(1)}" text-anchor="middle">${p.v}%</text>`;
+  }).join('');
+
+  return `
+  <svg class="line-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
+       aria-label="กราฟเส้นพัฒนาการ: ${pts.map((p) => `${p.v}%`).join(', ')}">
+    <defs>
+      <linearGradient id="scoreFill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#2b2823" stop-opacity=".16"/>
+        <stop offset="100%" stop-color="#2b2823" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    ${grid}
+    ${n > 1 ? `<polygon class="line-area" points="${area}"/>` : ''}
+    ${n > 1 ? `<polyline class="line-path" points="${line}"/>` : ''}
+    ${pts.map((p) => `
+      <circle class="dot${p.v === best && n > 1 ? ' is-best' : p.v === low && n > 1 ? ' is-low' : ''}"
+        cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="5"/>`).join('')}
+    ${labels}
+  </svg>
+  <div class="chart-x">${pts.map((p) => `<span>${e(p.label)}</span>`).join('')}</div>`;
+}
+
+/* ── การ์ดคำถาม 1 ข้อ ─────────────────────────────────── */
 function isAnswerRight(q, showSolutions) {
   if (!showSolutions) return false;
   const ans = String(q.answer ?? '').trim().toLowerCase();
   const correct = String(q.correct ?? '').trim().toLowerCase();
-  if (!ans || !correct) return false;
-  return ans === correct;
+  return Boolean(ans) && Boolean(correct) && ans === correct;
 }
 
-function questionRow(q, i, showSolutions) {
+function questionCard(q, i) {
   const ans = String(q.answer ?? '');
-  const correct = showSolutions ? String(q.correct ?? '') : '';
+  const correct = String(q.correct ?? '');
   const isRight = ans !== '' && correct !== '' && ans.trim().toLowerCase() === correct.trim().toLowerCase();
   const blank = ans === '';
   const cls = blank ? 'is-blank' : isRight ? 'is-right' : 'is-wrong';
   const manual = q.manual && q.manual.score !== undefined && q.manual.score !== null;
+  const typeLabel = { mcq: 'เลือกตอบ', truefalse: 'ถูก/ผิด', short: 'ตอบสั้น', essay: 'อัตนัย' }[q.type] || q.type;
 
   const options = Array.isArray(q.options) && q.options.length
     ? q.options.map((o) => {
@@ -270,26 +345,27 @@ function questionRow(q, i, showSolutions) {
         if (isCorrectOpt) c.push('is-correct');
         else if (chosen) c.push('is-wrong');
         if (chosen) c.push('is-chosen');
-        return `<div class="${c.join(' ')}">${e(o.id)}. ${e(o.text)}${chosen ? ' ← เลือก' : ''}${isCorrectOpt && !chosen ? ' ✓ เฉลย' : ''}</div>`;
+        return `<div class="${c.join(' ')}"><span class="opt-id">${e(o.id)}.</span>
+          <span ${mathAttr(o.text)}>${e(o.text)}</span>${
+          chosen ? ' <span class="chip chip--mute">เลือก</span>' : ''
+        }${isCorrectOpt && !chosen ? ' <span class="chip chip--ok">เฉลย</span>' : ''}</div>`;
       }).join('')
     : '';
-
-  const typeLabel = { mcq: 'เลือกตอบ', truefalse: 'ถูก/ผิด', short: 'ตอบสั้น', essay: 'อัตนัย' }[q.type] || q.type;
 
   return `
   <div class="q-card ${cls}">
     <div class="q-meta">
-      <span class="seat-badge">ข้อ ${i + 1}</span>
-      <span class="seat-badge">${e(typeLabel)}</span>
-      <span class="seat-badge">${e(q.points)} คะแนน</span>
-      <span class="seat-badge" style="${isRight ? 'background:var(--green-soft);color:var(--green);border-color:transparent'
-        : blank ? '' : 'background:var(--red-soft);color:var(--red);border-color:transparent'}">
-        ${isRight ? 'ถูก' : blank ? 'ไม่ได้ตอบ' : 'ผิด'}${manual ? ` · ตรวจแล้ว ${q.manual.score}` : ''}</span>
+      <span class="chip chip--mute">ข้อ ${i + 1}</span>
+      <span class="chip chip--mute">${e(typeLabel)}</span>
+      <span class="chip chip--mute">${e(q.points)} คะแนน</span>
+      <span class="chip ${isRight ? 'chip--ok' : blank ? 'chip--mute' : 'chip--bad'}">${
+        isRight ? 'ตอบถูก' : blank ? 'ไม่ได้ตอบ' : 'ตอบผิด'}${manual ? ` · ตรวจแล้ว ${e(String(q.manual.score))}` : ''}</span>
     </div>
-    <div class="q-text">${e(q.text || '')}</div>
+    <div class="q-text" ${mathAttr(q.text)}>${e(q.text || '')}</div>
     ${options}
-    ${q.type === 'short' || q.type === 'essay'
-      ? `<div class="q-answer">ตอบ: <b>${e(ans || '—')}</b>${correct ? ` · เฉลย: <b>${e(correct)}</b>` : ''}</div>` : ''}
-    ${q.explanation ? `<div class="q-answer">คำอธิบาย: ${e(q.explanation)}</div>` : ''}
+    ${(q.type === 'short' || q.type === 'essay')
+      ? `<div class="q-answer">ตอบ: <b ${mathAttr(ans || '—')}>${e(ans || '—')}</b>${
+          correct ? ` · เฉลย: <b ${mathAttr(correct)}>${e(correct)}</b>` : ''}</div>` : ''}
+    ${q.explanation ? `<div class="q-answer">คำอธิบาย: <span ${mathAttr(q.explanation)}>${e(q.explanation)}</span></div>` : ''}
   </div>`;
 }

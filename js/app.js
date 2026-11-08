@@ -8,7 +8,7 @@ import { renderHome } from './views/home.js';
 import { renderCourse } from './views/course.js';
 import { renderCheckout } from './views/checkout.js';
 import { renderAuth, renderTeacherAuth } from './views/auth.js';
-import { renderAccount, renderScores } from './views/account.js';
+import { renderAccount, renderScores, renderExamDetail } from './views/account.js';
 import { renderAdmin } from './views/admin.js';
 import { renderPortal } from './views/portal.js';
 
@@ -38,8 +38,9 @@ export function avatarHtml(user, size = 40) {
 
 /* ── header / footer ──────────────────────────────────── */
 function navLink(path, label) {
-  const active = (location.hash.replace(/^#/, '').split('?')[0] || '/').startsWith(path) ? ' is-active' : '';
-  return `<a class="nav-link${active}" href="#${path}">${e(label)}</a>`;
+  const here = (location.hash.replace(/^#/, '').split('?')[0] || '/');
+  const active = (path === '/' ? here === '/' : here === path || here.startsWith(`${path}/`)) ? ' is-active' : '';
+  return `<a class="nav-link${active}" href="#${path}"${active ? ' aria-current="page"' : ''}>${e(label)}</a>`;
 }
 
 function renderHeader() {
@@ -110,11 +111,33 @@ function parse() {
   return { path: path || '/', query: new URLSearchParams(query), parts: path.split('/').filter(Boolean) };
 }
 
+
+/* ── เลย์เอาต์คอนโซล (แถบด้านข้าง) ─────────────────────── */
+export function consoleLayout({ items = [], title = '', subtitle = '', body = '' }) {
+  return `
+  <div class="console">
+    <aside class="console__nav">
+      <div class="console__eyebrow">เมนูจัดการ</div>
+      ${items.map((it) => `
+        <a href="${it.href}" class="${it.active ? 'is-active' : ''}"${it.active ? ' aria-current="page"' : ''}>
+          <span>${e(it.label)}</span>
+          ${it.count ? `<span class="count">${e(String(it.count))}</span>` : ''}
+        </a>`).join('')}
+    </aside>
+    <section class="console__main">
+      ${title ? `<h1 class="console__title">${e(title)}</h1>` : ''}
+      ${subtitle ? `<p class="console__sub">${subtitle}</p>` : ''}
+      ${body}
+    </section>
+  </div>`;
+}
+
 const ctx = {
   data, me: null, settings,
   go: (path) => { location.hash = `#${path}`; },
   money, baht, statusBadge, avatarHtml,
   header: renderHeader,
+  consoleLayout,
   courseCard,
 };
 
@@ -127,9 +150,10 @@ const ROUTES = [
   { test: (p) => p === '/teacher-login', view: renderTeacherAuth },
   { test: (p) => p === '/account', view: renderAccount, auth: true },
   { test: (p) => p === '/scores', view: renderScores, auth: true },
+  { test: (p) => p.startsWith('/scores/') && p.includes('/exam/'), view: renderExamDetail, auth: true },
   { test: (p) => p.startsWith('/scores/'), view: renderScores, key: 1, auth: true },
-  { test: (p) => p === '/admin', view: renderAdmin, auth: true, role: 'owner' },
-  { test: (p) => p === '/portal', view: renderPortal, auth: true, role: 'teacher' },
+  { test: (p) => p === '/admin', view: renderAdmin, auth: true, role: 'owner', shell: 'console' },
+  { test: (p) => p === '/portal', view: renderPortal, auth: true, role: 'teacher', shell: 'console' },
 ];
 
 export function courseCard(c) {
@@ -176,8 +200,10 @@ async function render() {
       return;
     }
     const arg = match.key ? route.parts[match.key] : null;
+    document.body.dataset.shell = match.shell === 'console' ? 'console' : 'page';
     const html = await match.view(arg, { ...ctx, me, settings, route });
     if (html) app.innerHTML = html;
+    if (typeof match.after === 'function') match.after(ctx);
     window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
   } catch (err) {
     console.error(err);

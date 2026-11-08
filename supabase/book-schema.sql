@@ -623,3 +623,20 @@ end;
 $$;
 
 grant execute on function public.bk_signup_parent(text, text, text, text, text) to anon, authenticated;
+
+-- ════════════════════════════════════════════════════════════
+--  ข้อมูลครู 1 คนจากรายชื่อบุคลากรของ 02._.mock (ใช้ตอนล็อกอิน)
+-- ════════════════════════════════════════════════════════════
+create or replace function public.bk_teacher_profile(p_code text)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+           'code', t->>'code', 'name', coalesce(t->>'name',''),
+           'orgId', coalesce(t->>'orgId',''), 'school', coalesce(t->>'school',''),
+           'subject', coalesce(t->>'subject',''),
+           'isOwner', coalesce((t->>'isOwner')::boolean, false))
+  from public.app_state s, jsonb_array_elements(coalesce(s.data->'teachers','[]'::jsonb)) t
+  where s.id = 'main' and lower(t->>'code') = lower(trim(coalesce(p_code,'')))
+  limit 1;
+$$;
+
+grant execute on function public.bk_teacher_profile(text) to anon, authenticated;

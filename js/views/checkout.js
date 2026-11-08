@@ -28,7 +28,6 @@ export async function renderCheckout(orderId, ctx) {
 
   const html = `
   <div class="wrap" style="padding-top:30px">
-    <div class="eyebrow">CHECKOUT</div>
     <h1 style="font-family:var(--brand-font);font-size:28px;margin:8px 0 18px">ชำระเงินค่าคอร์ส</h1>
 
     <div class="book-grid-2">
@@ -73,7 +72,6 @@ export async function renderCheckout(orderId, ctx) {
       </div>
 
       <div class="book-card">
-        <div class="eyebrow" style="margin-bottom:10px">สิ่งที่ต้องทำ</div>
         <ol style="padding-left:18px;line-height:1.9;color:var(--muted);font-size:14px;margin:0">
           <li>เปิดแอปธนาคาร แล้วสแกน QR ด้านซ้าย</li>
           <li>โอนตามยอดที่แสดง (ระบบใส่ยอดให้อัตโนมัติ)</li>

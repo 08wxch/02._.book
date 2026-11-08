@@ -3519,3 +3519,112 @@ table.book-table tr:last-child td { border-bottom: 0; }
 .q-card.is-blank { border-left: 3px solid var(--line-strong); }
 .q-card .q-text { line-height: 1.75; margin: 8px 0 10px; }
 .q-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* ══ คอนโซล: แถบด้านข้าง ═══════════════════════════════ */
+body[data-shell="console"] .site-footer { display: none; }
+.console {
+  display: grid; grid-template-columns: 232px minmax(0, 1fr);
+  max-width: 1240px; margin: 0 auto; min-height: calc(100vh - 62px);
+}
+.console__nav {
+  position: sticky; top: 62px; align-self: start;
+  padding: 26px 12px 26px 22px; display: flex; flex-direction: column; gap: 3px;
+}
+.console__eyebrow { font-size: 11px; letter-spacing: .12em; color: var(--muted-2); padding: 0 10px 10px; }
+.console__nav a {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 9px 11px; border-radius: 9px; text-decoration: none;
+  color: var(--muted); font-size: 13.5px; line-height: 1.3;
+}
+.console__nav a:hover { background: var(--mint-soft); color: var(--ink); }
+.console__nav a.is-active { background: var(--ink); color: #fff; }
+.console__nav a .count {
+  font-size: 11px; min-width: 20px; height: 19px; padding: 0 6px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--red-soft); color: var(--red);
+}
+.console__nav a.is-active .count { background: rgba(255,255,255,.18); color: #fff; }
+.console__main { padding: 26px 24px 56px; min-width: 0; }
+.console__title { font-family: var(--brand-font); font-size: 26px; margin: 0 0 4px; }
+.console__sub { font-size: 13px; color: var(--muted); margin: 0 0 22px; }
+@media (max-width: 900px) {
+  .console { grid-template-columns: 1fr; }
+  .console__nav {
+    position: static; flex-direction: row; overflow-x: auto; padding: 10px 14px;
+    border-bottom: 1px solid var(--book-line); gap: 6px;
+  }
+  .console__eyebrow { display: none; }
+  .console__nav a { white-space: nowrap; border: 1px solid var(--book-line); }
+  .console__nav a.is-active { border-color: var(--ink); }
+  .console__main { padding: 18px 16px 44px; }
+}
+
+/* ══ กราฟเส้นพัฒนาการ ══════════════════════════════════ */
+.line-card { padding: 18px 20px 14px; }
+.line-chart { width: 100%; height: 200px; display: block; overflow: visible; }
+.line-chart .grid-line { stroke: var(--book-line); stroke-width: 1; }
+.line-chart .axis-label { fill: var(--muted-2); font-size: 10px; }
+.line-chart .line-path { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.line-chart .line-area { fill: url(#scoreFill); }
+.line-chart .dot { fill: #fff; stroke: var(--ink); stroke-width: 2; }
+.line-chart .dot.is-best { stroke: var(--green); }
+.line-chart .dot.is-low { stroke: var(--red); }
+.line-chart .val { fill: var(--ink); font-size: 11px; font-weight: 600; }
+.chart-x { display: flex; justify-content: space-between; gap: 4px; margin-top: 6px; }
+.chart-x span { font-size: 10.5px; color: var(--muted-2); flex: 1; text-align: center; }
+.chart-x span:first-child { text-align: left; }
+.chart-x span:last-child { text-align: right; }
+
+/* ══ การ์ดข้อสอบ (ไม่มี border-left) ═══════════════════ */
+.q-card { border: 1px solid var(--book-line); border-radius: 12px; padding: 15px 17px; margin-bottom: 10px; background: var(--book-card); }
+.q-card.is-right { background: color-mix(in srgb, var(--green-soft) 42%, var(--book-card)); }
+.q-card.is-wrong { background: color-mix(in srgb, var(--red-soft) 34%, var(--book-card)); }
+.q-card.is-blank { background: var(--surface-soft); }
+
+/* ══ ป้ายสถานะ ══════════════════════════════════════════ */
+.chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; }
+.chip--ok { background: var(--green-soft); color: var(--green); }
+.chip--bad { background: var(--red-soft); color: var(--red); }
+.chip--mute { background: var(--mint-soft); color: var(--muted); }
+.chip--warn { background: var(--amber-soft); color: var(--amber); }
+
+/* ══ สูตรคณิต ═══════════════════════════════════════════ */
+.math--block { display: block; margin: 6px 0; }
+.katex { font-size: 1.02em; }
+.q-text .katex { font-size: 1.06em; }
+
+/* รายละเอียดในตัวเลือกข้อสอบ */
+.q-opt .opt-id { font-weight: 600; margin-right: 2px; }
+.q-opt .katex { font-size: 1.02em; }
+JSEOF
+pkill -f "remote-debugging-port=9333"; sleep 1; cd /tmp && python3 -u - <<'PY'
+import sys, time, json
+sys.path.insert(0,'/tmp')
+from cdp import Browser
+
+def js_click(p, sel):
+    return p.eval("(() => { const el=document.querySelector(%s); if(!el) return false; el.click(); return true; })()" % json.dumps(sel))
+
+b = Browser(user_data_dir="/tmp/b3b")
+try:
+    p = b.new_page("about:blank")
+    p.goto("http://127.0.0.1:8781/#/teacher-login", settle=7.0)
+    for i in range(12):
+        time.sleep(2)
+        if p.eval("!!document.querySelector('#t-login')"): break
+    p.eval("""(() => { document.querySelector('#t-code').value='02._.math'; document.querySelector('#t-pass').value='123456'; })()""")
+    js_click(p, "#t-login")
+    for i in range(20):
+        time.sleep(2.5)
+        if p.eval("location.hash.startsWith('#/admin')"): break
+    p.eval("location.hash='#/scores/stu_mvnbvprr_y2rmjh/exam/exam_mvwl39a0_eytdgo'")
+    for i in range(24):
+        time.sleep(2.5)
+        if p.eval("document.querySelectorAll('.q-card').length"): break
+    time.sleep(4)
+    print("questions:", p.eval("document.querySelectorAll('.q-card').length"),
+          "| katex:", p.eval("document.querySelectorAll('.katex').length"))
+    p.shot("/tmp/b3-exam2.png")
+finally:
+    b.close()
+PY

@@ -129,21 +129,14 @@ export async function renderTeacherAuth(_arg, ctx) {
   const html = `
   <div class="wrap" style="max-width:480px;padding-top:56px">
     <div class="book-card">
-      <div class="eyebrow">TEACHER ACCESS</div>
       <h1 style="font-family:var(--brand-font);font-size:23px;margin:8px 0 6px">เข้าสู่ระบบสำหรับครู</h1>
-      <p class="tiny dim" style="margin:0 0 18px">ใช้รหัสครูและรหัสผ่านชุดเดียวกับ 02._.mock</p>
+      <p class="tiny dim" style="margin:0 0 18px">ใช้รหัสครูและรหัสผ่านชุดเดียวกับที่เข้า 02._.mock — ดึงจากรายชื่อบุคลากรโดยตรง</p>
 
       <div class="field-row"><label>รหัสครู</label>
         <input id="t-code" placeholder="เช่น 02._.math" autocomplete="username"></div>
       <div class="field-row"><label>รหัสผ่าน</label>
         <input id="t-pass" type="password" autocomplete="current-password" placeholder="รหัสผ่าน"></div>
       <button class="btn btn-primary btn-block" id="t-login">เข้าสู่ระบบ</button>
-
-      <div style="border-top:1px solid var(--book-line);margin-top:16px;padding-top:14px">
-        <button class="btn btn-ghost btn-block btn-sm" id="t-sync">ซิงก์บัญชีครูจาก 02._.mock (ครั้งแรก)</button>
-        <p class="hint" style="margin-top:8px">ถ้ายังไม่เคยเข้าเว็บนี้เลย ให้กดปุ่มนี้ก่อนหนึ่งครั้ง
-          ระบบจะสร้างบัญชีให้ตรงกับข้อมูลครูใน 02._.mock</p>
-      </div>
 
       <div style="border-top:1px solid var(--book-line);margin-top:16px;padding-top:14px;text-align:center">
         <a class="tiny dim" href="#/login">เป็นผู้ปกครอง? เข้าที่นี่</a>
@@ -172,18 +165,6 @@ export async function renderTeacherAuth(_arg, ctx) {
     root.querySelector('#t-login').addEventListener('click', submit);
     root.querySelectorAll('input').forEach((i) => i.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') submit(); }));
 
-    root.querySelector('#t-sync').addEventListener('click', async (ev) => {
-      const btn = ev.currentTarget;
-      btn.disabled = true; btn.textContent = 'กำลังซิงก์…';
-      try {
-        const res = await ctx.data.syncTeachers();
-        toast(`ซิงก์แล้ว ${res?.teachers ?? 0} คน (สร้างใหม่ ${res?.created ?? 0})`, 'success');
-      } catch (err) {
-        toast(err.message || 'ซิงก์ไม่สำเร็จ', 'error');
-      } finally {
-        btn.disabled = false; btn.textContent = 'ซิงก์บัญชีครูจาก 02._.mock (ครั้งแรก)';
-      }
-    });
   }, 0);
 
   return html;

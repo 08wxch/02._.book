@@ -19,15 +19,10 @@ export async function renderPortal(_arg, ctx) {
   const byParent = {};
   links.forEach((l) => { (byParent[l.user_id] = byParent[l.user_id] || []).push(l); });
 
-  const html = `
-  <div class="wrap" style="padding-top:30px">
-    <div class="eyebrow">TEACHER PORTAL</div>
-    <h1 style="font-family:var(--brand-font);font-size:28px;margin:8px 0 4px">จัดการนักเรียน</h1>
-    <p class="tiny dim" style="margin:0 0 18px">หน่วยงาน: <b>${e(orgName)}</b> — คุณเห็นและจัดการได้เฉพาะนักเรียนในหน่วยงานนี้</p>
-
+  const body = `
     ${!orgId ? `<div class="book-card" style="margin-bottom:18px">
       <b>ยังไม่ได้ผูกหน่วยงาน</b>
-      <p class="tiny dim">ติดต่อเจ้าของระบบเพื่อกำหนดหน่วยงานให้บัญชีของคุณก่อนใช้งาน</p></div>` : ''}
+      <p class="tiny dim" style="margin:6px 0 0">ติดต่อเจ้าของระบบเพื่อกำหนดหน่วยงานให้บัญชีของคุณก่อนใช้งาน</p></div>` : ''}
 
     <div class="stat-row">
       <div class="stat-card"><div class="k">ผู้ปกครองในระบบ</div><div class="v">${parents.length}<small>คน</small></div></div>
@@ -36,7 +31,8 @@ export async function renderPortal(_arg, ctx) {
     </div>
 
     <div class="book-card" style="margin-bottom:20px">
-      <div class="eyebrow" style="margin-bottom:12px">เพิ่มนักเรียนให้ผู้ปกครอง</div>
+      <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:4px">เพิ่มนักเรียนให้ผู้ปกครอง</div>
+      <p class="tiny dim" style="margin:0 0 14px">เลือกผู้ปกครอง แล้วเลือกนักเรียนในหน่วยงานของคุณ</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
         <div class="field-row" style="flex:1;min-width:220px;margin:0">
           <label>ผู้ปกครอง</label>
@@ -52,9 +48,9 @@ export async function renderPortal(_arg, ctx) {
     </div>
 
     <div class="book-card">
-      <div class="eyebrow" style="margin-bottom:12px">ผู้ปกครอง &amp; นักเรียนที่ผูกไว้</div>
+      <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">ผู้ปกครอง &amp; นักเรียนที่ผูกไว้</div>
       ${parents.length ? `<div class="table-wrap"><table class="book-table">
-        <thead><tr><th>ผู้ปกครอง</th><th>ติดต่อ</th><th>นักเรียน</th><th></th></tr></thead>
+        <thead><tr><th>ผู้ปกครอง</th><th>ติดต่อ</th><th>นักเรียน</th></tr></thead>
         <tbody>${parents.map((p) => `
           <tr>
             <td>${e(p.name || '—')}<div class="tiny dim">${e(thaiDate(p.created_at))}</div></td>
@@ -62,13 +58,21 @@ export async function renderPortal(_arg, ctx) {
             <td>${(byParent[p.user_id] || []).filter((l) => l.org_id === orgId).map((l) => `
               <span class="seat-badge" style="margin:2px 4px 2px 0;display:inline-block">
                 ${e(l.student_name || l.student_id)}
-                <button data-unlink="${l.id}" style="border:0;background:none;cursor:pointer;color:var(--red);padding:0 0 0 4px">✕</button>
+                <button data-unlink="${l.id}" aria-label="เอาออก" style="border:0;background:none;cursor:pointer;color:var(--red);padding:0 0 0 4px">✕</button>
               </span>`).join('') || '<span class="tiny dim">ยังไม่มี</span>'}</td>
-            <td></td>
           </tr>`).join('')}</tbody>
       </table></div>` : `<p class="tiny dim">ยังไม่มีผู้ปกครองในระบบ</p>`}
-    </div>
-  </div>`;
+    </div>`;
+
+  const html = ctx.consoleLayout({
+    items: [
+      { href: '#/portal', label: 'จัดการนักเรียน', active: true },
+      { href: '#/scores', label: 'ดูคะแนนนักเรียน' },
+    ],
+    title: 'จัดการนักเรียน',
+    subtitle: `หน่วยงาน: <b>${e(orgName)}</b> — เห็นและจัดการได้เฉพาะนักเรียนในหน่วยงานนี้`,
+    body,
+  });
 
   setTimeout(() => {
     const root = document.getElementById('app');

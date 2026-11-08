@@ -27,7 +27,6 @@ export async function renderCourse(id, ctx) {
               : `<div class="course-card__placeholder">${e(course.subject || 'คอร์ส')}</div>`}
           </div>
           <div style="padding:22px">
-            <div class="eyebrow">${e(course.level || course.subject || 'COURSE')}</div>
             <h1 style="font-family:var(--brand-font);font-size:28px;margin:8px 0 10px">${e(course.title)}</h1>
             <p style="color:var(--muted);margin:0 0 16px">${e(course.subtitle || '')}</p>
             ${course.detail ? `<div style="white-space:pre-wrap;line-height:1.75">${e(course.detail)}</div>` : ''}

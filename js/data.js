@@ -95,13 +95,39 @@ export async function signInParent(email, password) {
 export async function signInTeacher(code, password) {
   const clean = String(code || '').trim();
   if (!clean) throw new Error('กรุณากรอกรหัสครู');
+  // ดึงอีเมลภายในจากรายชื่อบุคลากรของ 02._.mock แล้วล็อกอินทันที (ไม่ต้องซิงก์ก่อน)
   const { data: email, error: e1 } = await sb().rpc('bk_teacher_email', { p_code: clean });
   if (e1) throw e1;
+  if (!email) throw new Error('ไม่พบรหัสครูนี้ในรายชื่อบุคลากรของ 02._.mock');
   const { data: res, error } = await sb().auth.signInWithPassword({ email, password: String(password || '') });
-  if (error) throw new Error('รหัสครูหรือรหัสผ่านไม่ถูกต้อง');
+  if (error) {
+    if (/invalid login credentials/i.test(error.message)) {
+      throw new Error('รหัสครูหรือรหัสผ่านไม่ถูกต้อง (ใช้รหัสเดียวกับที่เข้า 02._.mock)');
+    }
+    throw new Error(error.message);
+  }
   session = res.session;
   await loadAccount();
+  if (!account) await ensureAccountFromMock(clean, res.user);
   notify();
+  return account;
+}
+
+/** ถ้ายังไม่มีบัญชีในเว็บนี้ แต่มีในรายชื่อบุคลากรของ 02._.mock ให้สร้างให้เลย */
+async function ensureAccountFromMock(code, user) {
+  try {
+    const { data: profile } = await sb().rpc('bk_teacher_profile', { p_code: code });
+    if (!profile) return null;
+    await sb().from('bk_accounts').upsert({
+      user_id: user.id, role: profile.isOwner ? 'owner' : 'teacher',
+      name: profile.name || '', email: user.email || '',
+      teacher_code: profile.code || code, org_id: profile.orgId || null,
+      org_hint: profile.school || '', approved: true,
+    }, { onConflict: 'user_id' });
+    await loadAccount();
+  } catch (err) {
+    console.warn('สร้างบัญชีครูจาก 02._.mock ไม่สำเร็จ', err);
+  }
   return account;
 }
 

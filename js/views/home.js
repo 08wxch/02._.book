@@ -23,7 +23,6 @@ export async function renderHome(_arg, ctx) {
   ${isCoursesPage ? '' : `
   <section class="book-hero">
     <div class="wrap">
-      <div class="eyebrow">PRIVATE TUTORING · 02._.MATH</div>
       <h1>เรียนคณิตกับครูตัวต่อตัว<br>พร้อมเห็นพัฒนาการจริงทุกครั้งที่สอบ</h1>
       <p>เลือกคอร์สที่เหมาะกับน้อง จ่ายผ่านพร้อมเพย์ แล้วครูจะยืนยันที่นั่งให้
          — หลังเรียน ผู้ปกครองดูคะแนนและข้อที่ผิดได้จากชุดข้อสอบจริงของ 02._.mock</p>
@@ -37,8 +36,7 @@ export async function renderHome(_arg, ctx) {
   <section class="wrap" style="padding-top:${isCoursesPage ? '34px' : '10px'}">
     <div class="section-head" style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px">
       <div>
-        <div class="eyebrow">COURSES</div>
-        <h2 style="font-family:var(--brand-font); font-size:26px; margin:6px 0 0">คอร์สที่เปิดอยู่ตอนนี้</h2>
+        <h2 style="font-family:var(--brand-font); font-size:26px; margin:0">คอร์สที่เปิดอยู่ตอนนี้</h2>
       </div>
       ${isCoursesPage ? '' : '<a class="btn btn-ghost btn-sm" href="#/courses">ดูทั้งหมด</a>'}
     </div>
@@ -48,7 +46,7 @@ export async function renderHome(_arg, ctx) {
   ${isCoursesPage ? '' : `
   <section class="wrap" style="padding-top:44px">
     <div class="book-card">
-      <div class="eyebrow" style="margin-bottom:14px">HOW IT WORKS</div>
+      <h2 style="font-family:var(--brand-font);font-size:19px;margin:0 0 16px">ขั้นตอนการจอง</h2>
       <div class="course-grid" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px">
         ${STEPS.map(([n, title, text]) => `
           <div>

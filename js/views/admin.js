@@ -20,13 +20,13 @@ export async function renderAdmin(_arg, ctx) {
   const pendingCount = orders.filter((o) => o.status === 'pending_confirm').length;
   const paid = orders.filter((o) => o.status === 'confirmed').reduce((s, o) => s + Number(o.amount || 0), 0);
 
-  const tabs = [
-    ['orders', `รอยืนยัน${pendingCount ? ` (${pendingCount})` : ''}`],
-    ['courses', 'คอร์สเรียน'],
-    ['users', 'ผู้ใช้งาน'],
-    ['links', 'นักเรียน'],
-    ['settings', 'ตั้งค่า'],
-  ];
+  const items = [
+    { id: 'orders', label: 'รอยืนยัน', count: pendingCount || '' },
+    { id: 'courses', label: 'คอร์สเรียน' },
+    { id: 'users', label: 'ผู้ใช้งาน' },
+    { id: 'links', label: 'นักเรียน' },
+    { id: 'settings', label: 'ตั้งค่า' },
+  ].map((it) => ({ ...it, href: `#/admin?tab=${it.id}`, active: tab === it.id }));
 
   ctx._roster = roster;
 
@@ -40,27 +40,20 @@ export async function renderAdmin(_arg, ctx) {
           ? linksHtml(parents, links, roster, ctx)
           : settingsHtml(ctx);
 
-  const html = `
-  <div class="wrap" style="padding-top:30px">
-    <div class="eyebrow">OWNER CONSOLE</div>
-    <h1 style="font-family:var(--brand-font);font-size:28px;margin:8px 0 4px">หลังบ้าน</h1>
-    <p class="tiny dim" style="margin:0 0 18px">ยืนยันการชำระเงิน จัดการคอร์ส และผูกนักเรียนให้ผู้ปกครอง</p>
-
-    <div class="stat-row">
-      <div class="stat-card"><div class="k">รอยืนยัน</div><div class="v">${pendingCount}<small>รายการ</small></div></div>
-      <div class="stat-card"><div class="k">ยืนยันแล้ว</div><div class="v">${orders.filter((o) => o.status === 'confirmed').length}<small>รายการ</small></div></div>
-      <div class="stat-card"><div class="k">ยอดรับชำระ</div><div class="v">${ctx.baht(paid)}</div></div>
-      <div class="stat-card"><div class="k">ผู้ปกครอง</div><div class="v">${parents.length}<small>คน</small></div></div>
-    </div>
-
-    <div class="pill-tabs">
-      ${tabs.map(([id, label]) => `<a class="btn btn-ghost btn-sm${tab === id ? ' is-active' : ''}"
-        style="${tab === id ? 'background:var(--ink);color:#fff;border-color:var(--ink)' : ''}"
-        href="#/admin?tab=${id}">${e(label)}</a>`).join('')}
-    </div>
-
-    ${body}
-  </div>`;
+  const html = ctx.consoleLayout({
+    items,
+    title: 'หลังบ้าน',
+    subtitle: 'ยืนยันการชำระเงิน จัดการคอร์ส และผูกนักเรียนให้ผู้ปกครอง',
+    body: `
+      <div class="stat-row">
+        <div class="stat-card"><div class="k">รอยืนยัน</div><div class="v">${pendingCount}<small>รายการ</small></div></div>
+        <div class="stat-card"><div class="k">ยืนยันแล้ว</div><div class="v">${orders.filter((o) => o.status === 'confirmed').length}<small>รายการ</small></div></div>
+        <div class="stat-card"><div class="k">ยอดรับชำระ</div><div class="v">${ctx.baht(paid)}</div></div>
+        <div class="stat-card"><div class="k">ผู้ปกครอง</div><div class="v">${parents.length}<small>คน</small></div></div>
+      </div>
+      ${body}
+    `,
+  });
 
   setTimeout(() => bindAdmin(ctx, tab), 0);
   return html;
@@ -72,7 +65,7 @@ function ordersHtml(orders, ctx) {
   const history = orders.filter((o) => o.status !== 'pending_confirm').slice(0, 30);
   return `
   <div class="book-card" style="margin-bottom:20px">
-    <div class="eyebrow" style="margin-bottom:12px">รอตรวจสลิป (${pending.length})</div>
+    <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">รอตรวจสลิป (${pending.length})</div>
     ${pending.length ? pending.map((o) => `
       <div class="q-row" style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start" id="row-${o.id}">
         <div id="thumb-${o.id}">
@@ -95,7 +88,7 @@ function ordersHtml(orders, ctx) {
   </div>
 
   <div class="book-card">
-    <div class="eyebrow" style="margin-bottom:12px">ประวัติล่าสุด</div>
+    <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">ประวัติล่าสุด</div>
     <div class="table-wrap"><table class="book-table">
       <thead><tr><th>วันที่</th><th>ผู้ปกครอง</th><th>คอร์ส</th><th>ผู้เรียน</th><th>ยอด</th><th>สถานะ</th></tr></thead>
       <tbody>${history.map((o) => `<tr>
@@ -116,7 +109,7 @@ function coursesHtml(courses, editId, ctx) {
   return `
   <div class="book-grid-2">
     <div class="book-card">
-      <div class="eyebrow" style="margin-bottom:12px">คอร์สทั้งหมด (${courses.length})</div>
+      <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">คอร์สทั้งหมด (${courses.length})</div>
       <div class="table-wrap"><table class="book-table">
         <thead><tr><th>คอร์ส</th><th>ราคา</th><th>ที่นั่ง</th><th>สถานะ</th><th></th></tr></thead>
         <tbody>${courses.map((c) => `<tr>
@@ -133,7 +126,7 @@ function coursesHtml(courses, editId, ctx) {
     </div>
 
     <div class="book-card">
-      <div class="eyebrow" style="margin-bottom:12px">${editing ? 'แก้ไขคอร์ส' : 'เพิ่มคอร์สใหม่'}</div>
+      <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">${editing ? 'แก้ไขคอร์ส' : 'เพิ่มคอร์สใหม่'}</div>
       <input type="hidden" id="c-id" value="${editing ? editing.id : ''}">
       <div class="field-row"><label>ชื่อคอร์ส</label><input id="c-title" value="${e(editing?.title || '')}"></div>
       <div class="field-row"><label>คำโปรยสั้น</label><input id="c-sub" value="${e(editing?.subtitle || '')}"></div>
@@ -171,11 +164,11 @@ function usersHtml(parents, teachers, ctx) {
 
   return `
   <div class="book-card" style="margin-bottom:20px">
-    <div class="eyebrow" style="margin-bottom:12px">ผู้ปกครอง (${parents.length})</div>
+    <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">ผู้ปกครอง (${parents.length})</div>
     ${render(parents, 'parent')}
   </div>
   <div class="book-card">
-    <div class="eyebrow" style="margin-bottom:12px">ครู (${teachers.length})</div>
+    <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">ครู (${teachers.length})</div>
     ${render(teachers, 'teacher')}
     <p class="hint" style="margin-top:10px">บัญชีครูซิงก์จาก 02._.mock — ครูเข้าด้วยรหัสครูเดิมของตัวเอง</p>
   </div>`;
@@ -189,7 +182,7 @@ function linksHtml(parents, links, roster, ctx) {
 
   return `
   <div class="book-card" style="margin-bottom:20px">
-    <div class="eyebrow" style="margin-bottom:12px">ผูกนักเรียนให้ผู้ปกครอง</div>
+    <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">ผูกนักเรียนให้ผู้ปกครอง</div>
     <p class="hint" style="margin:0 0 12px">เลือกผู้ปกครอง → เลือกนักเรียนจาก 02._.mock แล้วกดเพิ่ม (นักเรียนจะไปแสดงในหน้าคะแนนของผู้ปกครอง)</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
       <div class="field-row" style="flex:1;min-width:220px;margin:0">
@@ -205,7 +198,7 @@ function linksHtml(parents, links, roster, ctx) {
   </div>
 
   <div class="book-card">
-    <div class="eyebrow" style="margin-bottom:12px">การผูกทั้งหมด (${links.length})</div>
+    <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">การผูกทั้งหมด (${links.length})</div>
     ${links.length ? `<div class="table-wrap"><table class="book-table">
       <thead><tr><th>ผู้ปกครอง</th><th>นักเรียน</th><th>โรงเรียน/หน่วยงาน</th><th></th></tr></thead>
       <tbody>${links.map((l) => {
@@ -225,7 +218,7 @@ function settingsHtml(ctx) {
   const s = ctx.settings || {};
   return `
   <div class="book-card" style="max-width:620px">
-    <div class="eyebrow" style="margin-bottom:12px">ตั้งค่าการรับเงิน</div>
+    <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">ตั้งค่าการรับเงิน</div>
     <div class="field-row"><label>ประเภทพร้อมเพย์</label>
       <select id="s-type">
         <option value="phone" ${s.promptpay_type === 'phone' ? 'selected' : ''}>เบอร์โทร</option>
