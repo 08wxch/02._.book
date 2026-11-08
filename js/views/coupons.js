@@ -34,6 +34,7 @@ export async function renderCoupons(_arg, ctx) {
         ? `<img class="coupon-card__img" src="${e(c.image_url)}" alt="${e(c.title || c.code)}" loading="lazy">
            <div class="coupon-card__state">${stateChip(c)}</div>`
         : `<div class="coupon-card__body">
+             <div class="coupon-card__value">${c.kind === 'percent' ? `${c.value}%` : ctx.baht(c.value)}</div>
              <div class="coupon-card__text">
                <div class="coupon-card__title">${e(c.title || c.code)}</div>
                <div class="tiny dim">${e(scope(c))}</div>
@@ -41,10 +42,7 @@ export async function renderCoupons(_arg, ctx) {
                ${c.note ? `<div class="tiny dim">${e(c.note)}</div>` : ''}
                <div class="tiny dim">${c.expires_at ? `ใช้ได้ถึง ${e(thaiDate(c.expires_at))}` : 'ไม่มีวันหมดอายุ'}</div>
              </div>
-             <div class="coupon-card__right">
-               <div class="coupon-card__value">${c.kind === 'percent' ? `${c.value}%` : ctx.baht(c.value)}</div>
-               ${stateChip(c)}
-             </div>
+             <div class="coupon-card__right">${stateChip(c)}</div>
            </div>`}
     </article>`;
 

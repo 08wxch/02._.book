@@ -83,20 +83,8 @@ export async function renderCourse(id, ctx) {
                  <div class="tiny dim" id="buy-preview" style="margin-top:4px"></div>
                </div>` : `<p class="hint" style="margin:0 0 10px">
                  <a href="#/coupons" style="color:inherit">มีโค้ดส่วนลด? แลกได้ที่นี่</a></p>`}
-               <div id="buy-actions">
-                 <button class="btn btn-primary btn-block" id="buy-btn">ซื้อคอร์สนี้</button>
-                 <p class="hint" style="margin-top:10px">ขั้นต่อไปคือสแกน QR พร้อมเพย์และอัปโหลดสลิป</p>
-               </div>
-               <div id="buy-confirm" style="display:none">
-                 <div class="confirm-box">
-                   <div style="font-family:var(--brand-font);font-size:15px">ยืนยันการเลือกคอร์สนี้?</div>
-                   <div class="tiny dim" id="buy-confirm-text" style="margin-top:4px"></div>
-                 </div>
-                 <div style="display:flex;gap:8px;margin-top:10px">
-                   <button class="btn btn-danger" id="buy-cancel" style="flex:1">ไม่ซื้อคอร์ส</button>
-                   <button class="btn btn-primary" id="buy-ok" style="flex:1">ยืนยันเลือกคอร์ส</button>
-                 </div>
-               </div>`}
+               <button class="btn btn-primary btn-block" id="buy-btn">ซื้อคอร์ส</button>
+               <p class="hint" style="margin-top:10px">กดแล้วไปหน้าจ่ายเงิน (สแกน QR พร้อมเพย์ + อัปโหลดสลิป)</p>`}
       </div>
     </div>
   </div>`;
@@ -114,29 +102,7 @@ export async function renderCourse(id, ctx) {
       const discount = kind === 'percent' ? Math.floor(price * value / 100) : Math.min(value, price);
       preview.innerHTML = `จะจ่าย <b>${ctx.baht(Math.max(price - discount, 0))}</b> (ประหยัด ${ctx.baht(discount)})`;
     });
-
-    app.querySelector('#buy-btn')?.addEventListener('click', () => {
-      if (!ctx.me) {
-        location.hash = `#/login?next=${encodeURIComponent(`/course/${course.id}`)}`;
-        return;
-      }
-      const student = app.querySelector('#buy-student')?.value.trim() || '';
-      if (!student) { toast('กรุณากรอกชื่อนักเรียน', 'error'); return; }
-      const sel = app.querySelector('#buy-coupon');
-      const txt = app.querySelector('#buy-confirm-text');
-      if (txt) {
-        txt.textContent = `${course.title} · ผู้เรียน ${student}${sel && sel.value ? ` · ใช้โค้ด ${sel.value}` : ''}`;
-      }
-      app.querySelector('#buy-actions').style.display = 'none';
-      app.querySelector('#buy-confirm').style.display = '';
-    });
-
-    app.querySelector('#buy-cancel')?.addEventListener('click', () => {
-      app.querySelector('#buy-confirm').style.display = 'none';
-      app.querySelector('#buy-actions').style.display = '';
-    });
-
-    app.querySelector('#buy-ok')?.addEventListener('click', async (ev) => {
+    app.querySelector('#buy-btn')?.addEventListener('click', async (ev) => {
       const student = app.querySelector('#buy-student')?.value.trim() || '';
       const btn = ev.currentTarget;
       btn.disabled = true;

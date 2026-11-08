@@ -64,7 +64,7 @@ export async function renderCart(_arg, ctx) {
 
   return `
   <div class="wrap" style="padding-top:28px;max-width:900px">
-    <h1 style="font-family:var(--brand-font);font-size:26px;margin:0 0 6px">ตะกร้าและสถานะการซื้อ</h1>
+    <h1 style="font-family:var(--brand-font);font-size:26px;margin:0 0 6px">ประวัติการซื้อ</h1>
     <p class="tiny dim" style="margin:0 0 18px">ทุกคอร์สที่คุณเลือกไว้ พร้อมสถานะล่าสุด</p>
     ${sections}
     ${rejected.length ? `<section class="book-card">

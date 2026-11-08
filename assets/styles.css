@@ -3731,12 +3731,12 @@ body[data-shell="console"] .site-header { display: none; }
 .cart-item:last-child { border-bottom: 0; }
 
 /* ══ บัตรส่วนลด: ตัวเลขลดอยู่ขวา ชื่อ+รายละเอียดอยู่ซ้าย ══ */
-.coupon-card .coupon-card__body { display: flex; flex-direction: row; align-items: flex-start; gap: 14px; padding: 18px 20px; }
+.coupon-card .coupon-card__body { display: flex; flex-direction: row; align-items: flex-start; gap: 16px; padding: 18px 20px; }
 .coupon-card__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.coupon-card__title { font-family: var(--brand-font); font-size: 17px; line-height: 1.3; }
+.coupon-card__title { font-family: var(--brand-font); font-size: 19px; font-weight: 600; line-height: 1.3; }
 .coupon-card__value {
   font-family: var(--brand-font); font-size: 30px; line-height: 1;
-  text-align: right; white-space: nowrap; flex: 0 0 auto; padding-left: 6px;
+  text-align: left; white-space: nowrap; flex: 0 0 auto; padding-right: 2px; min-width: 76px;
 }
 @media (max-width: 420px) {
   .coupon-card__value { font-size: 24px; }
@@ -3752,5 +3752,10 @@ body[data-shell="console"] .site-header { display: none; }
 .icon-btn:hover { background: var(--mint-soft); }
 
 /* คอลัมน์ขวาของบัตรส่วนลด: ตัวเลข + สถานะ */
-.coupon-card__right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex: 0 0 auto; }
+.coupon-card__right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex: 0 0 auto; margin-left: auto; }
 .coupon-card:not(.has-image) .coupon-card__state { position: static; }
+
+/* กราฟเล็กลง + จุดกดได้ */
+.chart-card .line-chart { max-width: 560px; margin: 0 auto; }
+.dot-link { cursor: pointer; }
+.dot-link:hover .dot { r: 8; fill: var(--ink); }

@@ -110,8 +110,9 @@ export function studentOverviewHtml(report, ctx, opts = {}) {
         <div class="tiny dim">เปอร์เซ็นต์ที่ได้ในแต่ละชุด เรียงจากเก่าสุด → ล่าสุด</div>
       </div>
       ${scored.length
-        ? lineChart(scored)
+        ? lineChart(scored, studentId)
         : `<p class="tiny dim" style="padding:16px 0">ยังไม่มีชุดที่ครูประกาศคะแนน</p>`}
+      ${scored.length ? '<p class="tiny dim" style="margin:6px 0 0">กดจุดในกราฟเพื่อเปิดชุดข้อสอบนั้นได้เลย</p>' : ''}
     </div>
 
     <div class="book-card">
@@ -151,7 +152,7 @@ export async function renderExamDetail(_arg, ctx) {
   <div class="wrap" style="padding-top:28px">
     <a class="tiny dim" href="#/scores/${encodeURIComponent(studentId)}" style="text-decoration:none">← กลับหน้าคะแนนของ ${e(report.student?.name || 'นักเรียน')}</a>
 
-    ${opts.hideHero ? '' : `<div class="score-hero" style="margin-top:12px">`}
+    <div class="score-hero" style="margin-top:12px">
       <div>
         <h1>${e(exam.title)}</h1>
         <div class="tiny dim">
@@ -180,8 +181,8 @@ export async function renderExamDetail(_arg, ctx) {
 }
 
 /* ── กราฟเส้น (SVG) ───────────────────────────────────── */
-function lineChart(points) {
-  const W = 640, H = 190, padL = 40, padR = 26, padTop = 30, padBottom = 30;
+function lineChart(points, studentId = '') {
+  const W = 640, H = 150, padL = 40, padR = 26, padTop = 30, padBottom = 30;
   const n = points.length;
   const values = points.map((p) => Number(p.percent));
   const rawMax = Math.max(...values);
@@ -199,7 +200,7 @@ function lineChart(points) {
 
   const pts = points.map((p, i) => ({
     x: xOf(i), y: yOf(Number(p.percent)), v: Number(p.percent),
-    label: p.date ? thaiDate(p.date) : '', title: p.title,
+    label: p.date ? thaiDate(p.date) : '', title: p.title, examId: p.examId,
   }));
 
   const best = Math.max(...pts.map((p) => p.v));
@@ -231,8 +232,11 @@ function lineChart(points) {
     ${n > 1 ? `<polygon class="line-area" points="${area}"/>` : ''}
     ${n > 1 ? `<polyline class="line-path" points="${line}"/>` : ''}
     ${pts.map((p) => `
-      <circle class="dot${p.v === best && n > 1 ? ' is-best' : p.v === low && n > 1 ? ' is-low' : ''}"
-        cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="5"/>`).join('')}
+      <a class="dot-link" href="#/scores/${encodeURIComponent(studentId)}/exam/${encodeURIComponent(p.examId)}"
+         aria-label="${e(p.title)} ${p.v}%">
+        <circle class="dot${p.v === best && n > 1 ? ' is-best' : p.v === low && n > 1 ? ' is-low' : ''}"
+          cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="6"/>
+      </a>`).join('')}
     ${labels}
   </svg>
   <div class="chart-x">${pts.map((p) => `<span>${e(p.label)}</span>`).join('')}</div>`;

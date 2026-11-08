@@ -53,7 +53,7 @@ function renderHeader() {
   if (role === 'parent' || !me) {
     links.push(navLink('/scores', 'คะแนนนักเรียน'));
     links.push(navLink('/coupons', 'บัตรส่วนลด'));
-    links.push(navLink('/cart', 'ตะกร้า'));
+    links.push(navLink('/cart', 'ประวัติการซื้อ'));
   }
 
   if (role === 'owner') links.push(navLink('/admin', 'หลังบ้าน'));
@@ -94,12 +94,7 @@ function renderFooter() {
   <div class="footer-inner">
     <div>
       <div class="brand__name" style="font-size:15px">02._.book</div>
-      <div class="tiny dim">จองคอร์สเรียนและติดตามคะแนนนักเรียน</div>
-    </div>
-    <div class="footer-links">
-      <a href="#/courses">คอร์สเรียน</a>
-      <a href="#/scores">คะแนนนักเรียน</a>
-      <a href="#/account">บัญชีของฉัน</a>
+      <div class="tiny dim">ติดตามผลการเรียนออนไลน์</div>
     </div>
     <div class="tiny dim footer-contact">
       <div>IG : ${e(CONFIG.CONTACT.ig)}</div>

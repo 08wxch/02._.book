@@ -59,7 +59,7 @@ export async function renderCheckout(orderId, ctx) {
             <b>${order.status === 'confirmed' ? 'ยืนยันการชำระเงินเรียบร้อยแล้ว' : 'ส่งสลิปแล้ว รอครูยืนยัน'}</b>
             <p class="tiny dim">${order.status === 'confirmed'
               ? 'ครูจะติดต่อกลับตามเบอร์/LINE ที่คุณให้ไว้'
-              : 'โดยปกติครูจะยืนยันภายใน 24 ชั่วโมง — ตรวจสอบสถานะได้ที่หน้าบัญชีของฉัน'}</p>
+              : 'โดยปกติครูจะยืนยันภายใน 24 ชั่วโมง — ตรวจสอบได้ในหน้าประวัติการซื้อ'}</p>
             ${slipView ? `<img class="slip-thumb" src="${e(slipView)}" alt="สลิป" style="margin-top:10px">` : ''}
             <div style="margin-top:14px"><a class="btn btn-ghost btn-sm" href="#/account">ไปที่บัญชีของฉัน</a></div>
           </div>` : `
