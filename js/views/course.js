@@ -65,12 +65,12 @@ export async function renderCourse(id, ctx) {
             ? `<div class="empty-soft" style="padding:20px"><b>ที่นั่งเต็มแล้ว</b>
                  <p class="tiny dim">ติดต่อ Line : ${e(ctx.settings?.contact_line || '')} เพื่อรอรอบถัดไป</p></div>`
             : `<div class="field-row">
-                 <label>ชื่อ-นามสกุลจริงของนักเรียน</label>
-                 <input id="buy-student" placeholder="เช่น เด็กชายสมชาย ใจดี" maxlength="80">
+                 <label>ชื่อ-นามสกุลจริงของนักเรียน <span style="color:var(--red)">*</span></label>
+                 <input id="buy-student" maxlength="80" required>
                </div>
                <div class="field-row">
                  <label>หมายเหตุถึงครู (ไม่บังคับ)</label>
-                 <input id="buy-note" placeholder="เช่น สะดวกเรียนวันเสาร์เช้า" maxlength="160">
+                 <input id="buy-note" maxlength="160">
                </div>
                ${coupons.length ? `<div class="field-row">
                  <label>ใช้บัตรส่วนลด</label>
@@ -104,6 +104,11 @@ export async function renderCourse(id, ctx) {
     });
     app.querySelector('#buy-btn')?.addEventListener('click', async (ev) => {
       const student = app.querySelector('#buy-student')?.value.trim() || '';
+      if (!student) {
+        toast('กรุณากรอกชื่อ-นามสกุลจริงของนักเรียน', 'error');
+        app.querySelector('#buy-student')?.focus();
+        return;
+      }
       const btn = ev.currentTarget;
       btn.disabled = true;
       try {

@@ -66,6 +66,21 @@ export function studentOverviewHtml(report, ctx, opts = {}) {
   const delta = first && last && scored.length > 1 ? Math.round(Number(last.percent) - Number(first.percent)) : null;
   const trendWord = delta === null ? '' : delta > 0 ? 'ดีขึ้น' : delta < 0 ? 'ลดลง' : 'คงที่';
 
+  // หาการเปลี่ยนแปลงเทียบครั้งก่อน (เรียงจากเก่า → ใหม่)
+  const deltaById = {};
+  scored.forEach((x, i) => {
+    if (i === 0) { deltaById[x.examId] = null; return; }
+    deltaById[x.examId] = Math.round(Number(x.percent) - Number(scored[i - 1].percent));
+  });
+  const deltaChip = (id) => {
+    const d = deltaById[id];
+    if (d === null || d === undefined) return '';
+    if (d === 0) return '<span class="chip chip--mute">เท่าเดิม</span>';
+    return d > 0
+      ? `<span class="chip chip--ok">▲ ${d}%</span>`
+      : `<span class="chip chip--bad">▼ ${Math.abs(d)}%</span>`;
+  };
+
   const rows = exams.slice().reverse().map((x) => `
     <div class="exam-item">
       <div>
@@ -74,7 +89,7 @@ export function studentOverviewHtml(report, ctx, opts = {}) {
       </div>
       <div style="display:flex;align-items:center;gap:14px">
         ${x.showScore
-          ? `<div class="exam-score">${x.score}/${x.max}<small>${x.percent}%</small></div>`
+          ? `<div class="exam-score">${x.score}/${x.max}<small>${x.percent}% ${deltaChip(x.examId)}</small></div>`
           : `<div class="tiny dim">ครูยังไม่ประกาศคะแนน</div>`}
         <a class="btn btn-ghost btn-sm" href="#/scores/${encodeURIComponent(studentId)}/exam/${encodeURIComponent(x.examId)}">ดูข้อที่ผิด →</a>
       </div>
@@ -234,6 +249,7 @@ function lineChart(points, studentId = '') {
     ${pts.map((p) => `
       <a class="dot-link" href="#/scores/${encodeURIComponent(studentId)}/exam/${encodeURIComponent(p.examId)}"
          aria-label="${e(p.title)} ${p.v}%">
+        <title>${e(p.title)} · ${p.v}%</title>
         <circle class="dot${p.v === best && n > 1 ? ' is-best' : p.v === low && n > 1 ? ' is-low' : ''}"
           cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="6"/>
       </a>`).join('')}
