@@ -1133,3 +1133,16 @@ returns jsonb language sql stable security definer set search_path = public as $
     where cl.user_id = auth.uid()
   ) t;
 $$;
+
+-- เจ้าของ/ครู แก้รายการโรงเรียนของผู้ปกครอง
+create or replace function public.bk_set_parent_orgs(p_user uuid, p_org_ids text[])
+returns jsonb language plpgsql security definer set search_path = public as $$
+begin
+  if not (public.bk_is_owner() or public.bk_is_teacher()) then raise exception 'ไม่มีสิทธิ์'; end if;
+  update public.bk_accounts set org_ids = coalesce(p_org_ids, '{}'), updated_at = now()
+   where user_id = p_user;
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+grant execute on function public.bk_set_parent_orgs(uuid, text[]) to authenticated;

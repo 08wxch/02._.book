@@ -218,10 +218,14 @@ function openLinkModal(studentId, students, parents, ctx) {
 /* ── รายละเอียดผู้ปกครอง (ดู/แก้รหัส/ลบ) ───────────────── */
 export async function openParentDetail(userId, ctx) {
   let data;
-  try { data = await ctx.data.parentDetail(userId); } catch (err) {
+  let orgs = [];
+  try {
+    [data, orgs] = await Promise.all([ctx.data.parentDetail(userId), ctx.data.listOrganizations().catch(() => [])]);
+  } catch (err) {
     toast(err.message || 'โหลดข้อมูลผู้ปกครองไม่สำเร็จ', 'error');
     return;
   }
+  const orgNameOf = (id) => orgs.find((o) => o.id === id)?.name || id;
 
   openModal({
     title: data.name || data.email || 'ผู้ปกครอง',
@@ -240,6 +244,23 @@ export async function openParentDetail(userId, ctx) {
               <div class="tiny dim">${e(s.student_code || '')} · ${e(s.org_name || s.org_id || '')}</div></div>
             <button class="btn btn-ghost btn-sm" data-unlink="${s.link_id}" style="color:var(--red)">ถอด</button>
           </div>`).join('') : '<span class="tiny dim">ยังไม่มีนักเรียน</span>'}
+      </div>
+
+      <div style="margin-top:16px;border-top:1px solid var(--book-line);padding-top:14px">
+        <div class="tiny dim" style="margin-bottom:6px">โรงเรียน/หน่วยงานที่ผู้ปกครองเลือกไว้</div>
+        <div id="pd-orgs" style="display:flex;flex-wrap:wrap;gap:6px">
+          ${((data.org_ids || []).length ? data.org_ids.map((id) => `
+            <span class="chip chip--mute">${e(orgNameOf(id))}
+              <button data-drop-org="${id}" style="border:0;background:none;cursor:pointer;color:var(--red);padding:0 0 0 4px">✕</button>
+            </span>`).join('')
+            : '<span class="tiny dim">ยังไม่ได้เลือก</span>')}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <select id="pd-org-add" style="flex:1">
+            <option value="">+ เพิ่มหน่วยงาน…</option>
+            ${orgs.map((o) => `<option value="${o.id}">${e(o.name)}</option>`).join('')}
+          </select>
+        </div>
       </div>
 
       <div style="margin-top:16px;border-top:1px solid var(--book-line);padding-top:14px">
@@ -277,6 +298,31 @@ export async function openParentDetail(userId, ctx) {
           } catch (err) { toast(err.message || 'ไม่สำเร็จ', 'error'); }
         });
       });
+      root.querySelector('#pd-org-add')?.addEventListener('change', async (ev) => {
+        const id = ev.currentTarget.value;
+        if (!id) return;
+        const next = [...new Set([...(data.org_ids || []), id])];
+        try {
+          await ctx.data.setParentOrgs(userId, next);
+          data.org_ids = next;
+          toast('เพิ่มหน่วยงานแล้ว', 'success');
+          closeModal();
+          openParentDetail(userId, ctx);
+        } catch (err) { toast(err.message || 'ไม่สำเร็จ', 'error'); }
+      });
+      root.querySelectorAll('[data-drop-org]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const next = (data.org_ids || []).filter((x) => x !== btn.dataset.dropOrg);
+          try {
+            await ctx.data.setParentOrgs(userId, next);
+            data.org_ids = next;
+            toast('ลบหน่วยงานแล้ว', 'success');
+            closeModal();
+            openParentDetail(userId, ctx);
+          } catch (err) { toast(err.message || 'ไม่สำเร็จ', 'error'); }
+        });
+      });
+
       root.querySelector('[data-del]')?.addEventListener('click', async () => {
         const ok = await confirmDialog({
           title: 'ลบบัญชีผู้ปกครอง',

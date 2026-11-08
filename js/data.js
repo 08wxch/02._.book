@@ -443,6 +443,12 @@ export async function parentDetail(userId) {
   return data;
 }
 
+export async function setParentOrgs(userId, orgIds) {
+  const { data, error } = await sb().rpc('bk_set_parent_orgs', { p_user: userId, p_org_ids: orgIds || [] });
+  if (error) throw error;
+  return data;
+}
+
 export async function deleteParent(userId) {
   const { data, error } = await sb().rpc('bk_delete_parent', { p_user: userId });
   if (error) throw error;
@@ -458,6 +464,8 @@ export async function listOrganizations() {
 export async function setMyOrgs(orgIds) {
   const { data, error } = await sb().rpc('bk_set_my_orgs', { p_org_ids: orgIds || [] });
   if (error) throw error;
+  await loadAccount();
+  notify();
   return data;
 }
 
