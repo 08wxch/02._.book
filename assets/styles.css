@@ -3701,3 +3701,32 @@ body[data-shell="console"] .site-header { display: none; }
 .pick-row:hover { background: var(--mint-soft); }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 13.5px; }
 .kv span { color: var(--muted); }
+
+/* ══ บัตรส่วนลดแบบการ์ด (2 ใบ/แถวเมื่อจอกว้าง) ══════════ */
+.coupon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+@media (min-width: 1100px) { .coupon-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.coupon-card {
+  position: relative; border: 1px solid var(--book-line); border-radius: 14px;
+  background: var(--book-card); overflow: hidden; display: flex; flex-direction: column;
+}
+.coupon-card.is-used { opacity: .6; }
+.coupon-card__body { padding: 16px 18px; display: flex; flex-direction: column; gap: 5px; }
+.coupon-card__title { font-family: var(--brand-font); font-size: 17px; }
+.coupon-card__value { font-size: 14px; }
+.coupon-card__img { display: block; width: 100%; height: auto; }
+.coupon-card__state { position: absolute; top: 10px; right: 12px; }
+.coupon-card.has-image .coupon-card__state { background: rgba(255,255,255,.9); border-radius: 999px; padding: 2px; }
+.coupon-thumb { width: 54px; height: 32px; object-fit: cover; border-radius: 6px; display: block; margin-bottom: 4px; }
+.coupon-img-preview { max-width: 320px; width: 100%; border-radius: 10px; border: 1px solid var(--book-line); }
+
+/* ปุ่มเขียว + กล่องยืนยันการเลือกคอร์ส */
+.btn-green { --btn-bg: var(--green); --btn-fg: #fff; box-shadow: 0 5px 14px rgba(31, 122, 88, .18); }
+.btn-green:hover { --btn-bg: #1a6a4b; }
+.confirm-box { border: 1px dashed var(--line-strong); border-radius: 12px; padding: 12px 14px; background: var(--surface-soft); }
+
+/* ตะกร้า */
+.cart-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 12px 0; border-bottom: 1px solid var(--book-line);
+}
+.cart-item:last-child { border-bottom: 0; }

@@ -24,25 +24,24 @@ export async function renderCoupons(_arg, ctx) {
   const history = mine.filter((c) => !(c.status === 'available' && c.active && !isExpired(c)));
 
   const card = (c) => `
-    <div class="coupon ${c.status === 'used' ? 'is-used' : ''}">
-      <div class="coupon__value">
-        <b>${c.kind === 'percent' ? `${c.value}%` : ctx.baht(c.value)}</b>
-        <span>${c.kind === 'percent' ? 'ส่วนลด' : 'ส่วนลดเงินสด'}</span>
-      </div>
-      <div class="coupon__body">
-        <div class="coupon__code">${e(c.code)}</div>
-        <div class="tiny dim">${e(scope(c))}</div>
-        ${c.min_amount ? `<div class="tiny dim">ยอดขั้นต่ำ ${ctx.baht(c.min_amount)}</div>` : ''}
-        ${c.note ? `<div class="tiny dim">${e(c.note)}</div>` : ''}
-        <div class="tiny dim">${c.expires_at ? `ใช้ได้ถึง ${e(thaiDate(c.expires_at))}` : 'ไม่มีวันหมดอายุ'}</div>
-      </div>
-      <div class="coupon__state">
+    <article class="coupon-card ${c.status === 'used' ? 'is-used' : ''} ${c.image_url ? 'has-image' : ''}">
+      ${c.image_url
+        ? `<img class="coupon-card__img" src="${e(c.image_url)}" alt="${e(c.title || c.code)}" loading="lazy">`
+        : `<div class="coupon-card__body">
+             <div class="coupon-card__title">${e(c.title || c.code)}</div>
+             <div class="coupon-card__value">${c.kind === 'percent' ? `ลด ${c.value}%` : `ลด ${ctx.baht(c.value)}`}</div>
+             <div class="tiny dim">${e(scope(c))}</div>
+             ${c.min_amount ? `<div class="tiny dim">ยอดขั้นต่ำ ${ctx.baht(c.min_amount)}</div>` : ''}
+             ${c.note ? `<div class="tiny dim">${e(c.note)}</div>` : ''}
+             <div class="tiny dim">${c.expires_at ? `ใช้ได้ถึง ${e(thaiDate(c.expires_at))}` : 'ไม่มีวันหมดอายุ'}</div>
+           </div>`}
+      <div class="coupon-card__state">
         ${c.status === 'used'
           ? '<span class="chip chip--mute">ใช้แล้ว</span>'
           : isExpired(c) ? '<span class="chip chip--bad">หมดอายุ</span>'
           : '<span class="chip chip--ok">พร้อมใช้</span>'}
       </div>
-    </div>`;
+    </article>`;
 
   return `
   <div class="wrap" style="padding-top:30px;max-width:820px">
@@ -64,13 +63,13 @@ export async function renderCoupons(_arg, ctx) {
     </div>
 
     <h2 style="font-family:var(--brand-font);font-size:18px;margin:0 0 12px">พร้อมใช้ (${available.length})</h2>
-    ${available.length ? available.map(card).join('')
+    ${available.length ? `<div class="coupon-grid">${available.map(card).join('')}</div>`
       : `<div class="empty-soft" style="margin-bottom:22px"><b>ยังไม่มีบัตรส่วนลดที่ใช้ได้</b>
            <p class="tiny dim" style="margin:0">กรอกรหัสที่ได้รับจากครูด้านบนเพื่อแลกได้เลย</p></div>`}
 
     ${history.length ? `
       <h2 style="font-family:var(--brand-font);font-size:18px;margin:22px 0 12px">ประวัติ (${history.length})</h2>
-      ${history.map(card).join('')}` : ''}
+      <div class="coupon-grid">${history.map(card).join('')}</div>` : ''}
   </div>`;
 }
 

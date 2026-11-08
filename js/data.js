@@ -257,6 +257,7 @@ export async function listCoupons() {
 export async function saveCoupon(patch) {
   const clean = {
     code: String(patch.code || '').trim().toUpperCase(),
+    title: String(patch.title || ''),
     kind: patch.kind === 'amount' ? 'amount' : 'percent',
     value: Number(patch.value || 0),
     course_ids: Array.isArray(patch.course_ids) ? patch.course_ids : [],
@@ -267,6 +268,7 @@ export async function saveCoupon(patch) {
     note: String(patch.note || ''),
     expires_at: patch.expires_at || null,
   };
+  if (patch.image_url !== undefined) clean.image_url = patch.image_url;
   if (!clean.code) throw new Error('กรุณากรอกโค้ด');
   if (patch.id) {
     const { error } = await sb().from('bk_coupons').update(clean).eq('id', patch.id);
@@ -278,9 +280,31 @@ export async function saveCoupon(patch) {
   return data.id;
 }
 
+export async function uploadCouponImage(file) {
+  if (file.size > 1.5 * 1024 * 1024) throw new Error('รูปใหญ่เกิน 1.5MB');
+  const path = `coupons/${Date.now()}-${String(file.name || 'coupon').replace(/[^\w.-]+/g, '_')}`;
+  const up = await sb().storage.from(CONFIG.COVER_BUCKET).upload(path, file, { upsert: true, cacheControl: '31536000' });
+  if (up.error) throw up.error;
+  const { data: pub } = sb().storage.from(CONFIG.COVER_BUCKET).getPublicUrl(path);
+  return pub.publicUrl;
+}
+
 export async function deleteCoupon(id) {
+  const { data: row } = await sb().from('bk_coupons').select('image_url').eq('id', id).maybeSingle();
+  if (row?.image_url) await removeStorageUrl(row.image_url);
   const { error } = await sb().from('bk_coupons').delete().eq('id', id);
   if (error) throw error;
+}
+
+/** ลบไฟล์ใน bucket ออกจาก URL สาธารณะ */
+async function removeStorageUrl(url) {
+  try {
+    const marker = `/${CONFIG.COVER_BUCKET}/`;
+    const idx = String(url).indexOf(marker);
+    if (idx === -1) return;
+    const path = String(url).slice(idx + marker.length);
+    await sb().storage.from(CONFIG.COVER_BUCKET).remove([path]);
+  } catch (err) { console.warn('ลบไฟล์ไม่สำเร็จ', err); }
 }
 
 export async function getOrder(id) {

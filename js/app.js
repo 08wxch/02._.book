@@ -13,6 +13,7 @@ import { renderAdmin } from './views/admin.js';
 import { renderPortal } from './views/portal.js';
 import { renderCoupons, bindCoupons } from './views/coupons.js';
 import { renderStudents } from './views/students.js';
+import { renderCart } from './views/cart.js';
 
 const app = document.getElementById('app');
 let me = null;
@@ -57,6 +58,7 @@ function renderHeader() {
   if (role === 'parent' || !me) {
     links.push(navLink('/scores', 'คะแนนนักเรียน'));
     links.push(navLink('/coupons', 'บัตรส่วนลด'));
+    links.push(navLink('/cart', 'ตะกร้า'));
   }
   if (role === 'teacher' || role === 'owner') links.push(navLink('/students', 'รายชื่อนักเรียน'));
   if (role === 'owner') links.push(navLink('/admin', 'หลังบ้าน'));
@@ -169,6 +171,7 @@ const ROUTES = [
   { test: (p) => p === '/teacher-login', view: renderTeacherAuth },
   { test: (p) => p === '/account', view: renderAccount, auth: true },
   { test: (p) => p === '/coupons', view: renderCoupons, auth: true, after: (c) => bindCoupons(c) },
+  { test: (p) => p === '/cart', view: renderCart, auth: true },
   { test: (p) => p === '/scores', view: renderScores, auth: true },
   { test: (p) => p === '/students', view: renderStudents, auth: true, role: ['owner', 'teacher'], shell: 'console' },
   { test: (p) => p.startsWith('/students/'), view: renderStudents, key: 1, auth: true, role: ['owner', 'teacher'], shell: 'console' },

@@ -76,7 +76,7 @@ export async function renderCheckout(orderId, ctx) {
               <label class="hint">อัปโหลดสลิปการโอน</label>
               <input type="file" accept="image/*" id="slip-file" style="margin-top:6px">
               <div id="slip-preview" style="margin-top:10px"></div>
-              <button class="btn btn-primary btn-block" id="slip-submit" style="margin-top:12px" disabled>ยืนยันการชำระเงิน</button>
+              <button class="btn btn-green btn-block" id="slip-submit" style="margin-top:12px" disabled>ยืนยันการจ่ายเงิน</button>
             </div>
           </div>`}
       </div>
@@ -124,7 +124,7 @@ export async function renderCheckout(orderId, ctx) {
         window.dispatchEvent(new HashChangeEvent('hashchange'));
       } catch (err) {
         submit.disabled = false;
-        submit.textContent = 'ยืนยันการชำระเงิน';
+        submit.textContent = 'ยืนยันการจ่ายเงิน';
         toast(err.message || 'อัปโหลดไม่สำเร็จ', 'error');
       }
     });

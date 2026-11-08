@@ -1112,3 +1112,24 @@ returns jsonb language sql stable security definer set search_path = public as $
 $$;
 
 grant execute on function public.bk_organizations() to anon, authenticated;
+
+-- คูปอง: ชื่อบัตร + รูป
+alter table public.bk_coupons add column if not exists title text default '';
+alter table public.bk_coupons add column if not exists image_url text default '';
+
+-- ผู้ปกครองต้องอ่านรายละเอียดคูปองที่ตัวเองแลกได้ (การ์ดแสดงชื่อ/รูป)
+create or replace function public.bk_my_coupons()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(x order by x->>'claimed_at' desc), '[]'::jsonb) from (
+    select jsonb_build_object(
+             'claim_id', cl.id, 'status', cl.status,
+             'claimed_at', cl.claimed_at, 'used_at', cl.used_at,
+             'code', c.code, 'title', coalesce(nullif(c.title,''), c.code),
+             'image_url', c.image_url, 'kind', c.kind, 'value', c.value,
+             'course_ids', c.course_ids, 'min_amount', c.min_amount,
+             'note', c.note, 'expires_at', c.expires_at, 'active', c.active) as x
+    from public.bk_coupon_claims cl
+    join public.bk_coupons c on c.id = cl.coupon_id
+    where cl.user_id = auth.uid()
+  ) t;
+$$;

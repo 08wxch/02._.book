@@ -7,13 +7,14 @@ export async function renderAdmin(_arg, ctx) {
   const tab = ctx.route?.query.get('tab') || 'orders';
   const editId = ctx.route?.query.get('edit') || '';
 
-  const [orders, courses, accounts, links, roster, coupons] = await Promise.all([
+  const [orders, courses, accounts, links, roster, coupons, orgs] = await Promise.all([
     ctx.data.listAllOrders(),
     ctx.data.listCourses({ all: true }),
     ctx.data.listAccounts(),
     ctx.data.listAllLinks(),
     ctx.data.listMockRoster().catch(() => ({ students: [], organizations: [] })),
     ctx.data.listCoupons().catch(() => []),
+    ctx.data.listOrganizations().catch(() => []),
   ]);
 
   const parents = accounts.filter((a) => a.role === 'parent');
@@ -39,7 +40,7 @@ export async function renderAdmin(_arg, ctx) {
       : tab === 'coupons'
         ? couponsHtml(coupons, courses, editId, ctx)
         : tab === 'users'
-        ? usersHtml(parents, teachers, ctx)
+        ? usersHtml(parents, teachers, ctx, orgs)
         : tab === 'links'
           ? linksHtml(parents, links, roster, ctx)
           : settingsHtml(ctx);
@@ -181,7 +182,11 @@ function couponsHtml(coupons, courses, editId, ctx) {
       ${coupons.length ? `<div class="table-wrap"><table class="book-table coupon-table">
         <thead><tr><th>โค้ด</th><th>ส่วนลด</th><th>ใช้กับ</th><th>ใช้แล้ว</th><th>สถานะ</th><th></th></tr></thead>
         <tbody>${coupons.map((c) => `<tr>
-          <td><b>${e(c.code)}</b><div class="tiny dim">${e(c.note || '')}</div></td>
+          <td>
+            ${c.image_url ? `<img src="${e(c.image_url)}" alt="" class="coupon-thumb">` : ''}
+            <b>${e(c.title || c.code)}</b>
+            <div class="tiny dim">${e(c.code)}${c.note ? ` · ${e(c.note)}` : ''}</div>
+          </td>
           <td>${e(valueText(c))}</td>
           <td class="tiny">${e(scopeText(c))}</td>
           <td class="num">${c.used || 0}${c.max_uses ? ` / ${c.max_uses}` : ''}</td>
@@ -198,7 +203,11 @@ function couponsHtml(coupons, courses, editId, ctx) {
       <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">${editing ? 'แก้ไขโค้ด' : 'สร้างโค้ดใหม่'}</div>
       <input type="hidden" id="cp-id" value="${editing ? editing.id : ''}">
       <div class="field-row"><label>โค้ด (ตัวอักษร/ตัวเลข)</label>
-        <input id="cp-code" value="${e(editing?.code || '')}" placeholder="MATH100" style="text-transform:uppercase"></div>
+        <div style="display:flex;gap:8px">
+          <input id="cp-code" value="${e(editing?.code || '')}" placeholder="MATH100" style="text-transform:uppercase">
+          <button class="btn btn-ghost btn-sm" id="cp-rand" type="button">สุ่มโค้ด</button>
+        </div>
+        <span class="hint">อยากตั้งเองก็พิมพ์ทับได้เลย</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="field-row"><label>ประเภท</label>
           <select id="cp-kind">
@@ -209,13 +218,36 @@ function couponsHtml(coupons, courses, editId, ctx) {
           <input id="cp-value" type="number" min="0" value="${Number(editing?.value || 0)}"></div>
         <div class="field-row"><label>ยอดขั้นต่ำ (บาท)</label>
           <input id="cp-min" type="number" min="0" value="${Number(editing?.min_amount || 0)}"></div>
-        <div class="field-row"><label>ใช้ได้สูงสุด (0 = ไม่จำกัด)</label>
-          <input id="cp-max" type="number" min="0" value="${Number(editing?.max_uses || 0)}"></div>
       </div>
-      <div class="field-row"><label>ใช้กับคอร์ส (ไม่เลือก = ทุกคอร์ส)</label>
-        <select id="cp-courses" multiple size="${Math.min(5, Math.max(3, courses.length))}" style="height:auto">
+      <div class="field-row">
+        <label class="check-line">
+          <input type="checkbox" id="cp-unlimited" ${!editing || !Number(editing?.max_uses) ? 'checked' : ''}>
+          <span>ใช้ได้ไม่จำกัดจำนวนครั้ง</span>
+        </label>
+        <input id="cp-max" type="number" min="1" value="${Number(editing?.max_uses || 10)}"
+          ${!editing || !Number(editing?.max_uses) ? 'disabled' : ''} placeholder="เช่น 10">
+      </div>
+      <div class="field-row">
+        <label>ใช้กับคอร์ส (ไม่เลือกเลย = ใช้ได้ทุกคอร์ส)</label>
+        <select id="cp-courses" multiple size="${Math.min(6, Math.max(3, courses.length))}" style="height:auto">
           ${courses.map((c) => `<option value="${c.id}" ${(editing?.course_ids || []).includes(c.id) ? 'selected' : ''}>${e(c.title)}</option>`).join('')}
-        </select></div>
+        </select>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button class="btn btn-ghost btn-sm" type="button" id="cp-clear-courses">ล้างการเลือก (ใช้ทุกคอร์ส)</button>
+          <span class="hint" style="align-self:center">กด Ctrl/⌘ ค้างเพื่อเลือกหลายคอร์ส</span>
+        </div>
+      </div>
+      <div class="field-row">
+        <label>ชื่อบัตรส่วนลด (แสดงให้ผู้ปกครองเห็น)</label>
+        <input id="cp-title" value="${e(editing?.title || '')}" placeholder="เช่น บัตรส่วนลดเปิดเทอม" maxlength="80">
+      </div>
+      <div class="field-row"><label>รูปบัตร (แนวนอน แนะนำ 1000×560 px · ไม่เกิน 1MB)</label>
+        <input type="file" id="cp-image" accept="image/*">
+        <div id="cp-img-preview" style="margin-top:8px">
+          ${editing?.image_url ? `<img src="${e(editing.image_url)}" alt="" class="coupon-img-preview">` : ''}
+        </div>
+        ${editing?.image_url ? '<button class="btn btn-ghost btn-sm" type="button" id="cp-img-remove" style="margin-top:6px">ลบรูปบัตร</button>' : ''}
+      </div>
       <div class="field-row"><label>หมายเหตุ</label>
         <input id="cp-note" value="${e(editing?.note || '')}" placeholder="เช่น โปรเปิดเทอม"></div>
       <div class="field-row"><label>วันหมดอายุ (ไม่บังคับ)</label>
@@ -229,40 +261,68 @@ function couponsHtml(coupons, courses, editId, ctx) {
 }
 
 /* ── ผู้ใช้งาน ───────────────────────────────────────── */
-function usersHtml(parents, teachers, ctx) {
-  const render = (list, kind) => list.length ? `<div class="table-wrap"><table class="book-table">
-    <thead><tr><th>ชื่อ</th><th>ติดต่อ</th><th>สมัครเมื่อ</th>${kind === 'parent' ? '<th>รหัสผ่าน</th>' : '<th>รหัสครู</th>'}</tr></thead>
-    <tbody>${list.map((a) => `<tr>
-      <td>${e(a.name || '—')}<div class="tiny dim">${e(a.email || '')}</div></td>
-      <td class="tiny">${e(a.phone || '—')}<div class="tiny dim">${e(a.line_id || '')}</div></td>
-      <td class="tiny">${e(thaiDate(a.created_at))}</td>
-      <td class="tiny">${kind === 'parent' ? e(a.password_plain || '—') : e(a.teacher_code || '—')}</td>
-    </tr>`).join('')}</tbody>
-  </table></div>` : `<p class="tiny dim">ยังไม่มีข้อมูล</p>`;
+function usersHtml(parents, teachers, ctx, orgs = []) {
+  const orgFilter = ctx.route?.query.get('uorg') || '';
+  const orgName = (id) => orgs.find((o) => o.id === id)?.name || id || '';
+  const matchOrg = (a) => !orgFilter || (a.org_id === orgFilter) || (a.org_ids || []).includes(orgFilter);
+  const pList = parents.filter(matchOrg);
+  const tList = teachers.filter(matchOrg);
 
   return `
-  <div class="book-card" style="margin-bottom:20px">
-    <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">ผู้ปกครอง (${parents.length})</div>
-    ${render(parents, 'parent')}
+  <div class="book-card" style="margin-bottom:14px;padding:14px 16px">
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <label class="tiny dim">กรองตามหน่วยงาน/โรงเรียน</label>
+      <select id="user-org" style="min-width:260px">
+        <option value="">ทั้งหมด</option>
+        ${orgs.map((o) => `<option value="${o.id}" ${orgFilter === o.id ? 'selected' : ''}>${e(o.name)}</option>`).join('')}
+      </select>
+    </div>
   </div>
+
+  <div class="book-card" style="margin-bottom:18px">
+    <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:8px">ผู้ปกครอง (${pList.length})</div>
+    ${pList.length ? `<div class="table-wrap"><table class="book-table">
+      <thead><tr><th>ชื่อ</th><th>ติดต่อ</th><th>โรงเรียน/หน่วยงานของลูก</th><th></th></tr></thead>
+      <tbody>${pList.map((a) => `<tr>
+        <td><b>${e(a.name || '—')}</b><div class="tiny dim">${e(a.email || '')}</div></td>
+        <td class="tiny">${e(a.phone || '—')}<div class="tiny dim">${e(a.line_id || '')}</div></td>
+        <td class="tiny">${(a.org_ids || []).length ? (a.org_ids || []).map((id) => `<span class="chip chip--mute" style="margin-right:4px">${e(orgName(id))}</span>`).join('') : '<span class="dim">ยังไม่เลือก</span>'}</td>
+        <td><button class="btn btn-ghost btn-sm" data-open-parent="${a.user_id}">ดูรายละเอียด</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>` : '<p class="tiny dim">ไม่มีผู้ปกครองในหน่วยงานนี้</p>'}
+  </div>
+
   <div class="book-card">
-    <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">ครู (${teachers.length})</div>
-    ${render(teachers, 'teacher')}
-    <p class="hint" style="margin-top:10px">บัญชีครูซิงก์จาก 02._.mock — ครูเข้าด้วยรหัสครูเดิมของตัวเอง</p>
+    <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:8px">ครู (${tList.length})</div>
+    ${tList.length ? `<div class="table-wrap"><table class="book-table">
+      <thead><tr><th>ชื่อ</th><th>ติดต่อ</th><th>หน่วยงาน</th></tr></thead>
+      <tbody>${tList.map((a) => `<tr>
+        <td><b>${e(a.name || '—')}</b><div class="tiny dim">${e(a.email || '')}</div></td>
+        <td class="tiny">${e(a.phone || '—')}<div class="tiny dim">${e(a.line_id || '')}</div></td>
+        <td class="tiny">${e(orgName(a.org_id) || '—')}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>` : '<p class="tiny dim">ไม่มีครูในหน่วยงานนี้</p>'}
+    <p class="hint" style="margin-top:10px">ข้อมูลครูซิงก์จากรายชื่อบุคลากรใน 02._.mock อัตโนมัติตอนล็อกอิน</p>
   </div>`;
 }
 
-/* ── ผูกนักเรียน ─────────────────────────────────────── */
+/* ── ผูกนักเรียน (ทางลัด: ไปหน้ารายชื่อนักเรียน) ──────── */
 function linksHtml(parents, links, roster, ctx) {
   const students = roster?.students || [];
   const byParent = {};
   links.forEach((l) => { (byParent[l.user_id] = byParent[l.user_id] || []).push(l); });
 
   return `
-  <div class="book-card" style="margin-bottom:20px">
-    <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">ผูกนักเรียนให้ผู้ปกครอง</div>
-    <p class="hint" style="margin:0 0 12px">เลือกผู้ปกครอง → เลือกนักเรียนจาก 02._.mock แล้วกดเพิ่ม (นักเรียนจะไปแสดงในหน้าคะแนนของผู้ปกครอง)</p>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+  <div class="book-card" style="margin-bottom:18px">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
+      <div>
+        <div style="font-family:var(--brand-font);font-size:16px">ผูกนักเรียนกับผู้ปกครอง</div>
+        <p class="tiny dim" style="margin:6px 0 0">แนะนำให้ทำที่หน้า <b>รายชื่อนักเรียน</b> — เลือกหน่วยงานก่อน แล้วค่อยผูกทีละคน</p>
+      </div>
+      <a class="btn btn-primary btn-sm" href="#/students">ไปที่รายชื่อนักเรียน</a>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:16px">
       <div class="field-row" style="flex:1;min-width:220px;margin:0">
         <label>ผู้ปกครอง</label>
         <select id="link-parent">${parents.map((p) => `<option value="${p.user_id}">${e(p.name || p.email)} · ${e(p.email || '')}</option>`).join('')}</select>
@@ -271,23 +331,23 @@ function linksHtml(parents, links, roster, ctx) {
         <label>นักเรียน</label>
         <select id="link-student">${students.map((s) => `<option value="${s.id}">${e(s.name)} · ${e(s.code)} · ${e(s.orgName || '')}</option>`).join('')}</select>
       </div>
-      <button class="btn btn-primary" id="link-add">เพิ่ม</button>
+      <button class="btn btn-primary" id="link-add">ผูกให้ผู้ปกครอง</button>
     </div>
   </div>
 
   <div class="book-card">
-    <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">การผูกทั้งหมด (${links.length})</div>
+    <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:8px">การผูกทั้งหมด (${links.length})</div>
     ${links.length ? `<div class="table-wrap"><table class="book-table">
       <thead><tr><th>ผู้ปกครอง</th><th>นักเรียน</th><th>โรงเรียน/หน่วยงาน</th><th></th></tr></thead>
       <tbody>${links.map((l) => {
         const p = parents.find((x) => x.user_id === l.user_id);
         return `<tr>
-          <td>${e(p?.name || l.user_id)}<div class="tiny dim">${e(p?.email || '')}</div></td>
+          <td><b>${e(p?.name || l.user_id)}</b><div class="tiny dim">${e(p?.email || '')}</div></td>
           <td>${e(l.student_name || l.student_id)}<div class="tiny dim">${e(l.student_code || '')}</div></td>
           <td class="tiny">${e(l.org_id || '—')}</td>
           <td><button class="btn btn-ghost btn-sm" data-unlink="${l.id}" style="color:var(--red)">เอาออก</button></td>
         </tr>`; }).join('')}</tbody>
-    </table></div>` : `<p class="tiny dim">ยังไม่มีการผูกนักเรียน</p>`}
+    </table></div>` : '<p class="tiny dim">ยังไม่มีการผูกนักเรียน</p>'}
   </div>`;
 }
 
@@ -429,21 +489,60 @@ function bindAdmin(ctx, tab) {
     else if (!seats.value) seats.value = 8;
   });
 
+  // ผู้ใช้งาน
+  root.querySelector('#user-org')?.addEventListener('change', (ev) => {
+    location.hash = `#/admin?tab=users&uorg=${encodeURIComponent(ev.currentTarget.value)}`;
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  });
+  root.querySelectorAll('[data-open-parent]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const mod = await import('./students.js');
+      mod.openParentDetail(btn.dataset.openParent, ctx);
+    });
+  });
+
   // คูปอง
+  root.querySelector('#cp-rand')?.addEventListener('click', () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let out = '';
+    for (let i = 0; i < 8; i += 1) out += chars[Math.floor(Math.random() * chars.length)];
+    root.querySelector('#cp-code').value = out;
+  });
+  root.querySelector('#cp-clear-courses')?.addEventListener('click', () => {
+    root.querySelectorAll('#cp-courses option').forEach((o) => { o.selected = false; });
+  });
+  root.querySelector('#cp-unlimited')?.addEventListener('change', (ev) => {
+    const max = root.querySelector('#cp-max');
+    max.disabled = ev.currentTarget.checked;
+    if (ev.currentTarget.checked) max.value = '';
+    else if (!max.value) max.value = 10;
+  });
+  root.querySelector('#cp-img-remove')?.addEventListener('click', (ev) => {
+    ev.currentTarget.dataset.removed = '1';
+    root.querySelector('#cp-img-preview').innerHTML = '';
+    ev.currentTarget.style.display = 'none';
+    toast('จะลบรูปเมื่อกดบันทึก', 'success');
+  });
+
   root.querySelector('#cp-save')?.addEventListener('click', async (ev) => {
     const btn = ev.currentTarget;
     const sel = root.querySelector('#cp-courses');
     btn.disabled = true;
     try {
+      const file = root.querySelector('#cp-image')?.files?.[0];
+      let image_url = root.querySelector('#cp-img-remove')?.dataset.removed === '1' ? '' : undefined;
+      if (file) image_url = await ctx.data.uploadCouponImage(file);
       await ctx.data.saveCoupon({
         id: root.querySelector('#cp-id').value || undefined,
         code: root.querySelector('#cp-code').value,
+        title: root.querySelector('#cp-title').value,
         kind: root.querySelector('#cp-kind').value,
         value: root.querySelector('#cp-value').value,
         min_amount: root.querySelector('#cp-min').value,
-        max_uses: root.querySelector('#cp-max').value,
+        max_uses: root.querySelector('#cp-unlimited').checked ? 0 : root.querySelector('#cp-max').value,
         course_ids: [...sel.selectedOptions].map((o) => o.value),
         note: root.querySelector('#cp-note').value,
+        image_url,
         expires_at: root.querySelector('#cp-exp').value ? new Date(`${root.querySelector('#cp-exp').value}T23:59:59`).toISOString() : null,
       });
       toast('บันทึกโค้ดแล้ว', 'success');
@@ -475,7 +574,7 @@ function bindAdmin(ctx, tab) {
     const student = ctx._roster?.students?.find((s) => s.id === studentId);
     ev.currentTarget.disabled = true;
     try {
-      await ctx.data.ownerLinkStudent(parentId, student || { id: studentId });
+      await ctx.data.linkParentStudent(studentId, parentId);
       toast('ผูกนักเรียนแล้ว', 'success');
       location.reload();
     } catch (err) {
