@@ -37,6 +37,10 @@ export async function renderCheckout(orderId, ctx) {
             <div style="font-family:var(--brand-font);font-size:18px">${e(order.course_title)}</div>
             <div class="tiny dim">ผู้เรียน ${e(order.student_name || '—')}</div>
             <div class="tiny dim">สร้างเมื่อ ${e(thaiDateTime(order.created_at))}</div>
+            ${order.coupon_code
+              ? `<div class="tiny" style="margin-top:6px">ใช้บัตรส่วนลด <b>${e(order.coupon_code)}</b>
+                   <span class="chip chip--ok">ประหยัด ${ctx.baht(order.discount || 0)}</span></div>`
+              : `<div class="tiny dim" style="margin-top:6px"><a href="#/coupons" style="color:inherit">มีโค้ดส่วนลด? แลกก่อนสั่งซื้อ</a></div>`}
           </div>
           <div style="text-align:right">
             <div class="price" style="font-size:26px">${ctx.baht(order.amount)}</div>

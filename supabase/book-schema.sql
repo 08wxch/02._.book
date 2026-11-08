@@ -640,3 +640,171 @@ returns jsonb language sql stable security definer set search_path = public as $
 $$;
 
 grant execute on function public.bk_teacher_profile(text) to anon, authenticated;
+
+-- ════════════════════════════════════════════════════════════
+--  คูปองส่วนลด (เจ้าของสร้าง → ผู้ปกครองแลกโค้ด → ใช้ตอนซื้อ)
+-- ════════════════════════════════════════════════════════════
+create table if not exists public.bk_coupons (
+  id           uuid primary key default gen_random_uuid(),
+  code         text not null,
+  kind         text not null default 'percent' check (kind in ('percent','amount')),
+  value        integer not null default 0,
+  course_ids   uuid[] not null default '{}',   -- ว่าง = ใช้ได้ทุกคอร์ส
+  min_amount   integer not null default 0,
+  max_uses     integer not null default 0,     -- 0 = ไม่จำกัดจำนวนครั้ง
+  max_per_user integer not null default 1,
+  active       boolean not null default true,
+  note         text default '',
+  expires_at   timestamptz,
+  created_at   timestamptz not null default now()
+);
+create unique index if not exists bk_coupons_code_key on public.bk_coupons (upper(code));
+
+create table if not exists public.bk_coupon_claims (
+  id         uuid primary key default gen_random_uuid(),
+  coupon_id  uuid not null references public.bk_coupons(id) on delete cascade,
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  status     text not null default 'available' check (status in ('available','used')),
+  claimed_at timestamptz not null default now(),
+  used_at    timestamptz,
+  order_id   uuid,
+  unique (coupon_id, user_id)
+);
+
+alter table public.bk_orders add column if not exists coupon_code text default '';
+alter table public.bk_orders add column if not exists discount integer not null default 0;
+
+alter table public.bk_coupons        enable row level security;
+alter table public.bk_coupon_claims  enable row level security;
+
+drop policy if exists bk_coupons_select on public.bk_coupons;
+create policy bk_coupons_select on public.bk_coupons
+  for select using (public.bk_is_owner());
+
+drop policy if exists bk_coupons_write on public.bk_coupons;
+create policy bk_coupons_write on public.bk_coupons
+  for all using (public.bk_is_owner()) with check (public.bk_is_owner());
+
+drop policy if exists bk_claims_select on public.bk_coupon_claims;
+create policy bk_claims_select on public.bk_coupon_claims
+  for select using (user_id = auth.uid() or public.bk_is_owner());
+
+-- ── แลกโค้ดส่วนลดเข้ากระเป๋าผู้ปกครอง ────────────────────
+create or replace function public.bk_claim_coupon(p_code text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_c public.bk_coupons;
+  v_used int;
+  v_mine int;
+  v_claim public.bk_coupon_claims;
+begin
+  if v_uid is null then raise exception 'ต้องเข้าสู่ระบบก่อน'; end if;
+
+  select * into v_c from public.bk_coupons where upper(code) = upper(trim(coalesce(p_code,''))) limit 1;
+  if v_c.id is null then raise exception 'ไม่พบโค้ดส่วนลดนี้'; end if;
+  if not v_c.active then raise exception 'โค้ดนี้ปิดใช้งานแล้ว'; end if;
+  if v_c.expires_at is not null and v_c.expires_at < now() then raise exception 'โค้ดนี้หมดอายุแล้ว'; end if;
+
+  select count(*) into v_used from public.bk_coupon_claims where coupon_id = v_c.id and status = 'used';
+  if v_c.max_uses > 0 and v_used >= v_c.max_uses then raise exception 'โค้ดนี้ถูกใช้ครบจำนวนแล้ว'; end if;
+
+  select count(*) into v_mine from public.bk_coupon_claims where coupon_id = v_c.id and user_id = v_uid;
+  if v_mine >= greatest(v_c.max_per_user, 1) then raise exception 'คุณแลกโค้ดนี้ไว้แล้ว'; end if;
+
+  insert into public.bk_coupon_claims (coupon_id, user_id)
+  values (v_c.id, v_uid)
+  returning * into v_claim;
+
+  return jsonb_build_object('ok', true, 'claim_id', v_claim.id,
+    'code', v_c.code, 'kind', v_c.kind, 'value', v_c.value, 'course_ids', v_c.course_ids,
+    'min_amount', v_c.min_amount, 'note', v_c.note);
+end;
+$$;
+
+-- ── สร้างคำสั่งซื้อ (คำนวณส่วนลดฝั่งเซิร์ฟเวอร์) ─────────
+create or replace function public.bk_create_order(
+  p_course_id uuid, p_student_name text, p_note text, p_coupon_code text default null
+) returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_course public.bk_courses;
+  v_sold int;
+  v_claim public.bk_coupon_claims;
+  v_coupon public.bk_coupons;
+  v_discount int := 0;
+  v_amount int;
+  v_order public.bk_orders;
+begin
+  if v_uid is null then raise exception 'ต้องเข้าสู่ระบบก่อน'; end if;
+
+  select * into v_course from public.bk_courses where id = p_course_id and active = true;
+  if v_course.id is null then raise exception 'ไม่พบคอร์สนี้'; end if;
+
+  if v_course.seats > 0 then
+    select count(*) into v_sold from public.bk_orders
+      where course_id = v_course.id and status in ('pending_confirm','confirmed');
+    if v_sold >= v_course.seats then raise exception 'คอร์สนี้เต็มแล้ว'; end if;
+  end if;
+
+  if coalesce(trim(p_coupon_code), '') <> '' then
+    select c.* into v_coupon from public.bk_coupons c
+      where upper(c.code) = upper(trim(p_coupon_code)) and c.active limit 1;
+    if v_coupon.id is null then raise exception 'โค้ดส่วนลดไม่ถูกต้อง'; end if;
+    if array_length(v_coupon.course_ids, 1) is not null and not (v_course.id = any(v_coupon.course_ids)) then
+      raise exception 'โค้ดนี้ใช้กับคอร์สนี้ไม่ได้';
+    end if;
+
+    select * into v_claim from public.bk_coupon_claims
+      where coupon_id = v_coupon.id and user_id = v_uid and status = 'available' limit 1;
+    if v_claim.id is null then raise exception 'ยังไม่ได้แลกโค้ดนี้ หรือใช้ไปแล้ว'; end if;
+
+    if v_course.price >= v_coupon.min_amount then
+      if v_coupon.kind = 'percent' then
+        v_discount := floor(v_course.price * v_coupon.value / 100.0)::int;
+      else
+        v_discount := least(v_coupon.value, v_course.price);
+      end if;
+    else
+      raise exception 'คอร์สนี้ยังไม่ถึงยอดขั้นต่ำของโค้ด (ขั้นต่ำ % บาท)', v_coupon.min_amount;
+    end if;
+  end if;
+
+  v_amount := greatest(v_course.price - v_discount, 0);
+
+  insert into public.bk_orders (user_id, course_id, course_title, student_name, amount, note,
+                                coupon_code, discount, status)
+  values (v_uid, v_course.id, v_course.title, trim(coalesce(p_student_name,'')), v_amount,
+          trim(coalesce(p_note,'')), coalesce(v_coupon.code,''), v_discount, 'pending_payment')
+  returning * into v_order;
+
+  if v_claim.id is not null then
+    update public.bk_coupon_claims
+      set status = 'used', used_at = now(), order_id = v_order.id
+      where id = v_claim.id;
+  end if;
+
+  return to_jsonb(v_order);
+end;
+$$;
+
+grant execute on function public.bk_claim_coupon(text) to authenticated;
+grant execute on function public.bk_create_order(uuid, text, text, text) to authenticated;
+
+-- คูปองของผู้ปกครอง (พร้อมรายละเอียดที่ใช้ได้) — ให้ผู้ปกครองอ่านผ่าน RPC
+create or replace function public.bk_my_coupons()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(x order by x->>'claimed_at' desc), '[]'::jsonb) from (
+    select jsonb_build_object(
+             'claim_id', cl.id, 'status', cl.status,
+             'claimed_at', cl.claimed_at, 'used_at', cl.used_at,
+             'code', c.code, 'kind', c.kind, 'value', c.value,
+             'course_ids', c.course_ids, 'min_amount', c.min_amount,
+             'note', c.note, 'expires_at', c.expires_at, 'active', c.active) as x
+    from public.bk_coupon_claims cl
+    join public.bk_coupons c on c.id = cl.coupon_id
+    where cl.user_id = auth.uid()
+  ) t;
+$$;
+
+grant execute on function public.bk_my_coupons() to authenticated;

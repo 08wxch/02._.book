@@ -7,12 +7,13 @@ export async function renderAdmin(_arg, ctx) {
   const tab = ctx.route?.query.get('tab') || 'orders';
   const editId = ctx.route?.query.get('edit') || '';
 
-  const [orders, courses, accounts, links, roster] = await Promise.all([
+  const [orders, courses, accounts, links, roster, coupons] = await Promise.all([
     ctx.data.listAllOrders(),
     ctx.data.listCourses({ all: true }),
     ctx.data.listAccounts(),
     ctx.data.listAllLinks(),
     ctx.data.listMockRoster().catch(() => ({ students: [], organizations: [] })),
+    ctx.data.listCoupons().catch(() => []),
   ]);
 
   const parents = accounts.filter((a) => a.role === 'parent');
@@ -23,6 +24,7 @@ export async function renderAdmin(_arg, ctx) {
   const items = [
     { id: 'orders', label: 'รอยืนยัน', count: pendingCount || '' },
     { id: 'courses', label: 'คอร์สเรียน' },
+    { id: 'coupons', label: 'บัตรส่วนลด' },
     { id: 'users', label: 'ผู้ใช้งาน' },
     { id: 'links', label: 'นักเรียน' },
     { id: 'settings', label: 'ตั้งค่า' },
@@ -34,7 +36,9 @@ export async function renderAdmin(_arg, ctx) {
     ? ordersHtml(orders, ctx)
     : tab === 'courses'
       ? coursesHtml(courses, editId, ctx)
-      : tab === 'users'
+      : tab === 'coupons'
+        ? couponsHtml(coupons, courses, editId, ctx)
+        : tab === 'users'
         ? usersHtml(parents, teachers, ctx)
         : tab === 'links'
           ? linksHtml(parents, links, roster, ctx)
@@ -50,6 +54,7 @@ export async function renderAdmin(_arg, ctx) {
         <div class="stat-card"><div class="k">ยืนยันแล้ว</div><div class="v">${orders.filter((o) => o.status === 'confirmed').length}<small>รายการ</small></div></div>
         <div class="stat-card"><div class="k">ยอดรับชำระ</div><div class="v">${ctx.baht(paid)}</div></div>
         <div class="stat-card"><div class="k">ผู้ปกครอง</div><div class="v">${parents.length}<small>คน</small></div></div>
+        <div class="stat-card"><div class="k">โค้ดส่วนลดที่เปิด</div><div class="v">${coupons.filter((c) => c.active).length}<small>โค้ด</small></div></div>
       </div>
       ${body}
     `,
@@ -115,7 +120,7 @@ function coursesHtml(courses, editId, ctx) {
         <tbody>${courses.map((c) => `<tr>
           <td>${e(c.title)}<div class="tiny dim">${e(c.level || '')}</div></td>
           <td>${ctx.baht(c.price)}</td>
-          <td>${c.seats || 'ไม่จำกัด'}</td>
+          <td>${c.seats ? `${c.seats} ที่นั่ง` : 'ไม่จำกัด'}</td>
           <td>${c.active ? '<span class="seat-badge">เปิดขาย</span>' : '<span class="seat-badge is-low">ปิด</span>'}</td>
           <td style="white-space:nowrap">
             <a class="btn btn-ghost btn-sm" href="#/admin?tab=courses&edit=${c.id}">แก้ไข</a>
@@ -135,7 +140,16 @@ function coursesHtml(courses, editId, ctx) {
         <div class="field-row"><label>ราคา (บาท)</label><input id="c-price" type="number" min="0" step="50" value="${Number(editing?.price || 0)}"></div>
         <div class="field-row"><label>ชั่วโมง</label><input id="c-hours" type="number" min="0" value="${Number(editing?.hours || 0)}"></div>
         <div class="field-row"><label>จำนวนครั้ง</label><input id="c-lessons" type="number" min="0" value="${Number(editing?.lessons || 0)}"></div>
-        <div class="field-row"><label>ที่นั่ง (0 = ไม่จำกัด)</label><input id="c-seats" type="number" min="0" value="${Number(editing?.seats || 0)}"></div>
+      </div>
+      <div class="field-row">
+        <label>จำนวนที่นั่ง</label>
+        <label class="check-line">
+          <input type="checkbox" id="c-unlimited" ${!editing || !Number(editing?.seats) ? 'checked' : ''}>
+          <span>ไม่จำกัดจำนวนคน (เรียนได้เรื่อย ๆ)</span>
+        </label>
+        <input id="c-seats" type="number" min="1" value="${Number(editing?.seats || 8)}"
+          ${!editing || !Number(editing?.seats) ? 'disabled' : ''} placeholder="เช่น 8">
+        <div class="tiny dim">ถ้าไม่ติ๊ก "ไม่จำกัด" ระบบจะหยุดรับเมื่อเต็มจำนวน</div>
       </div>
       <div class="field-row"><label>ระดับชั้น</label><input id="c-level" value="${e(editing?.level || '')}" placeholder="เช่น ม.4–ม.6"></div>
       <div class="field-row"><label>รูปปก (URL หรืออัปโหลด)</label>
@@ -145,6 +159,70 @@ function coursesHtml(courses, editId, ctx) {
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-primary" id="c-save">${editing ? 'บันทึกการแก้ไข' : 'เพิ่มคอร์ส'}</button>
         ${editing ? `<a class="btn btn-ghost" href="#/admin?tab=courses">ยกเลิก</a>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+
+/* ── บัตรส่วนลด ───────────────────────────────────────── */
+function couponsHtml(coupons, courses, editId, ctx) {
+  const editing = coupons.find((c) => c.id === editId);
+  const courseName = (id) => courses.find((c) => c.id === id)?.title || '—';
+  const scopeText = (c) => ((c.course_ids || []).length
+    ? c.course_ids.map(courseName).join(' · ')
+    : 'ทุกคอร์ส');
+  const valueText = (c) => (c.kind === 'percent' ? `ลด ${c.value}%` : `ลด ${ctx.baht(c.value)}`);
+
+  return `
+  <div class="book-grid-2">
+    <div class="book-card">
+      <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">โค้ดทั้งหมด (${coupons.length})</div>
+      ${coupons.length ? `<div class="table-wrap"><table class="book-table">
+        <thead><tr><th>โค้ด</th><th>ส่วนลด</th><th>ใช้กับ</th><th>ใช้แล้ว</th><th>สถานะ</th><th></th></tr></thead>
+        <tbody>${coupons.map((c) => `<tr>
+          <td><b>${e(c.code)}</b><div class="tiny dim">${e(c.note || '')}</div></td>
+          <td>${e(valueText(c))}</td>
+          <td class="tiny">${e(scopeText(c))}</td>
+          <td class="num">${c.used || 0}${c.max_uses ? ` / ${c.max_uses}` : ''}</td>
+          <td>${c.active ? '<span class="chip chip--ok">เปิด</span>' : '<span class="chip chip--mute">ปิด</span>'}</td>
+          <td style="white-space:nowrap">
+            <a class="btn btn-ghost btn-sm" href="#/admin?tab=coupons&edit=${c.id}">แก้ไข</a>
+            <button class="btn btn-ghost btn-sm" data-del-coupon="${c.id}" style="color:var(--red)">ลบ</button>
+          </td>
+        </tr>`).join('')}</tbody>
+      </table></div>` : `<p class="tiny dim">ยังไม่มีโค้ดส่วนลด</p>`}
+    </div>
+
+    <div class="book-card">
+      <div style="font-family:var(--brand-font);font-size:16px;margin-bottom:10px">${editing ? 'แก้ไขโค้ด' : 'สร้างโค้ดใหม่'}</div>
+      <input type="hidden" id="cp-id" value="${editing ? editing.id : ''}">
+      <div class="field-row"><label>โค้ด (ตัวอักษร/ตัวเลข)</label>
+        <input id="cp-code" value="${e(editing?.code || '')}" placeholder="MATH100" style="text-transform:uppercase"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field-row"><label>ประเภท</label>
+          <select id="cp-kind">
+            <option value="percent" ${editing?.kind !== 'amount' ? 'selected' : ''}>เปอร์เซ็นต์</option>
+            <option value="amount" ${editing?.kind === 'amount' ? 'selected' : ''}>จำนวนเงิน (บาท)</option>
+          </select></div>
+        <div class="field-row"><label>มูลค่า</label>
+          <input id="cp-value" type="number" min="0" value="${Number(editing?.value || 0)}"></div>
+        <div class="field-row"><label>ยอดขั้นต่ำ (บาท)</label>
+          <input id="cp-min" type="number" min="0" value="${Number(editing?.min_amount || 0)}"></div>
+        <div class="field-row"><label>ใช้ได้สูงสุด (0 = ไม่จำกัด)</label>
+          <input id="cp-max" type="number" min="0" value="${Number(editing?.max_uses || 0)}"></div>
+      </div>
+      <div class="field-row"><label>ใช้กับคอร์ส (ไม่เลือก = ทุกคอร์ส)</label>
+        <select id="cp-courses" multiple size="${Math.min(5, Math.max(3, courses.length))}" style="height:auto">
+          ${courses.map((c) => `<option value="${c.id}" ${(editing?.course_ids || []).includes(c.id) ? 'selected' : ''}>${e(c.title)}</option>`).join('')}
+        </select></div>
+      <div class="field-row"><label>หมายเหตุ</label>
+        <input id="cp-note" value="${e(editing?.note || '')}" placeholder="เช่น โปรเปิดเทอม"></div>
+      <div class="field-row"><label>วันหมดอายุ (ไม่บังคับ)</label>
+        <input id="cp-exp" type="date" value="${editing?.expires_at ? String(editing.expires_at).slice(0, 10) : ''}"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-primary" id="cp-save">${editing ? 'บันทึกการแก้ไข' : 'สร้างโค้ด'}</button>
+        ${editing ? `<a class="btn btn-ghost" href="#/admin?tab=coupons">ยกเลิก</a>` : ''}
       </div>
     </div>
   </div>`;
@@ -319,7 +397,7 @@ function bindAdmin(ctx, tab) {
         price: Number(root.querySelector('#c-price').value),
         hours: Number(root.querySelector('#c-hours').value),
         lessons: Number(root.querySelector('#c-lessons').value),
-        seats: Number(root.querySelector('#c-seats').value),
+        seats: root.querySelector('#c-unlimited').checked ? 0 : Number(root.querySelector('#c-seats').value || 0),
         level: root.querySelector('#c-level').value.trim(),
         image_url,
       });
@@ -339,6 +417,51 @@ function bindAdmin(ctx, tab) {
       try {
         await ctx.data.deleteCourse(btn.dataset.delCourse);
         toast('ลบคอร์สแล้ว', 'success');
+        location.reload();
+      } catch (err) { toast(err.message || 'ลบไม่สำเร็จ', 'error'); }
+    });
+  });
+
+  root.querySelector('#c-unlimited')?.addEventListener('change', (ev) => {
+    const seats = root.querySelector('#c-seats');
+    seats.disabled = ev.currentTarget.checked;
+    if (ev.currentTarget.checked) seats.value = '';
+    else if (!seats.value) seats.value = 8;
+  });
+
+  // คูปอง
+  root.querySelector('#cp-save')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    const sel = root.querySelector('#cp-courses');
+    btn.disabled = true;
+    try {
+      await ctx.data.saveCoupon({
+        id: root.querySelector('#cp-id').value || undefined,
+        code: root.querySelector('#cp-code').value,
+        kind: root.querySelector('#cp-kind').value,
+        value: root.querySelector('#cp-value').value,
+        min_amount: root.querySelector('#cp-min').value,
+        max_uses: root.querySelector('#cp-max').value,
+        course_ids: [...sel.selectedOptions].map((o) => o.value),
+        note: root.querySelector('#cp-note').value,
+        expires_at: root.querySelector('#cp-exp').value ? new Date(`${root.querySelector('#cp-exp').value}T23:59:59`).toISOString() : null,
+      });
+      toast('บันทึกโค้ดแล้ว', 'success');
+      location.hash = '#/admin?tab=coupons';
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    } catch (err) {
+      btn.disabled = false;
+      toast(err.message || 'บันทึกไม่สำเร็จ', 'error');
+    }
+  });
+
+  root.querySelectorAll('[data-del-coupon]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const ok = await confirmDialog({ title: 'ลบโค้ดส่วนลด', message: 'ลบโค้ดนี้ถาวร? ผู้ที่แลกไว้จะใช้ไม่ได้', confirmLabel: 'ลบ', tone: 'danger' });
+      if (!ok) return;
+      try {
+        await ctx.data.deleteCoupon(btn.dataset.delCoupon);
+        toast('ลบโค้ดแล้ว', 'success');
         location.reload();
       } catch (err) { toast(err.message || 'ลบไม่สำเร็จ', 'error'); }
     });

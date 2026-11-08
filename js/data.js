@@ -224,18 +224,68 @@ export async function uploadCover(file) {
 }
 
 /* ── orders ───────────────────────────────────────────── */
-export async function createOrder({ courseId, studentName, note }) {
+export async function createOrder({ courseId, studentName, note, couponCode }) {
   const uid = getUser()?.id;
   if (!uid) throw new Error('กรุณาเข้าสู่ระบบก่อน');
-  const course = await getCourse(courseId);
-  if (!course) throw new Error('ไม่พบคอร์สนี้');
-  const { data: row, error } = await sb().from('bk_orders').insert({
-    user_id: uid, course_id: course.id, course_title: course.title,
-    student_name: String(studentName || '').trim(), amount: Number(course.price || 0),
-    note: String(note || '').trim(), status: 'pending_payment',
-  }).select('*').single();
+  const { data, error } = await sb().rpc('bk_create_order', {
+    p_course_id: courseId,
+    p_student_name: String(studentName || ''),
+    p_note: String(note || ''),
+    p_coupon_code: couponCode ? String(couponCode) : null,
+  });
+  if (error) throw new Error(error.message || 'สร้างคำสั่งซื้อไม่สำเร็จ');
+  return data;
+}
+
+/* ── คูปองส่วนลด ──────────────────────────────────────── */
+export async function claimCoupon(code) {
+  const { data, error } = await sb().rpc('bk_claim_coupon', { p_code: String(code || '').trim() });
+  if (error) throw new Error(error.message || 'แลกโค้ดไม่สำเร็จ');
+  return data;
+}
+
+export async function listMyCoupons() {
+  const { data, error } = await sb().rpc('bk_my_coupons');
   if (error) throw error;
-  return row;
+  return data || [];
+}
+
+export async function listCoupons() {
+  const { data, error } = await sb().from('bk_coupons').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  const { data: claims } = await sb().from('bk_coupon_claims').select('coupon_id, status');
+  const used = {};
+  (claims || []).forEach((c) => { if (c.status === 'used') used[c.coupon_id] = (used[c.coupon_id] || 0) + 1; });
+  return (data || []).map((c) => ({ ...c, used: used[c.id] || 0 }));
+}
+
+export async function saveCoupon(patch) {
+  const clean = {
+    code: String(patch.code || '').trim().toUpperCase(),
+    kind: patch.kind === 'amount' ? 'amount' : 'percent',
+    value: Number(patch.value || 0),
+    course_ids: Array.isArray(patch.course_ids) ? patch.course_ids : [],
+    min_amount: Number(patch.min_amount || 0),
+    max_uses: Number(patch.max_uses || 0),
+    max_per_user: Number(patch.max_per_user || 1),
+    active: patch.active !== false,
+    note: String(patch.note || ''),
+    expires_at: patch.expires_at || null,
+  };
+  if (!clean.code) throw new Error('กรุณากรอกโค้ด');
+  if (patch.id) {
+    const { error } = await sb().from('bk_coupons').update(clean).eq('id', patch.id);
+    if (error) throw error;
+    return patch.id;
+  }
+  const { data, error } = await sb().from('bk_coupons').insert(clean).select('id').single();
+  if (error) throw error;
+  return data.id;
+}
+
+export async function deleteCoupon(id) {
+  const { error } = await sb().from('bk_coupons').delete().eq('id', id);
+  if (error) throw error;
 }
 
 export async function getOrder(id) {

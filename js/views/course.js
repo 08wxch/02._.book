@@ -15,6 +15,17 @@ export async function renderCourse(id, ctx) {
   const full = course.seats && left <= 0;
   const isOwner = ctx.me?.role === 'owner';
 
+  // คูปองที่ผู้ปกครองแลกไว้และใช้กับคอร์สนี้ได้
+  let coupons = [];
+  if (ctx.me?.role === 'parent') {
+    try {
+      const mine = await ctx.data.listMyCoupons();
+      coupons = (mine || []).filter((c) => c.status === 'available' && c.active
+        && (!c.expires_at || new Date(c.expires_at) > new Date())
+        && ((c.course_ids || []).length === 0 || c.course_ids.includes(course.id)));
+    } catch (err) { coupons = []; }
+  }
+
   const html = `
   <div class="wrap" style="padding-top:30px">
     <a class="tiny dim" href="#/courses" style="text-decoration:none">← กลับไปหน้าคอร์ส</a>
@@ -58,6 +69,17 @@ export async function renderCourse(id, ctx) {
                  <label>หมายเหตุถึงครู (ไม่บังคับ)</label>
                  <input id="buy-note" placeholder="เช่น สะดวกเรียนวันเสาร์เช้า" maxlength="160">
                </div>
+               ${coupons.length ? `<div class="field-row">
+                 <label>ใช้บัตรส่วนลด</label>
+                 <select id="buy-coupon">
+                   <option value="">ไม่ใช้</option>
+                   ${coupons.map((c) => `<option value="${e(c.code)}" data-kind="${e(c.kind)}" data-value="${e(String(c.value))}">
+                     ${e(c.code)} — ${c.kind === 'percent' ? `ลด ${c.value}%` : `ลด ${ctx.baht(c.value)}`}
+                   </option>`).join('')}
+                 </select>
+                 <div class="tiny dim" id="buy-preview" style="margin-top:4px"></div>
+               </div>` : `<p class="hint" style="margin:0 0 10px">
+                 <a href="#/coupons" style="color:inherit">มีโค้ดส่วนลด? แลกได้ที่นี่</a></p>`}
                <button class="btn btn-primary btn-block" id="buy-btn">ซื้อคอร์สนี้</button>
                <p class="hint" style="margin-top:10px">ขั้นต่อไปคือสแกน QR พร้อมเพย์และอัปโหลดสลิป</p>`}
       </div>
@@ -66,6 +88,18 @@ export async function renderCourse(id, ctx) {
 
   setTimeout(() => {
     const app = document.getElementById('app');
+    const couponSel = app.querySelector('#buy-coupon');
+    couponSel?.addEventListener('change', () => {
+      const opt = couponSel.selectedOptions[0];
+      const price = Number(course.price || 0);
+      const preview = app.querySelector('#buy-preview');
+      if (!opt || !opt.value) { preview.textContent = ''; return; }
+      const kind = opt.dataset.kind;
+      const value = Number(opt.dataset.value || 0);
+      const discount = kind === 'percent' ? Math.floor(price * value / 100) : Math.min(value, price);
+      preview.innerHTML = `จะจ่าย <b>${ctx.baht(Math.max(price - discount, 0))}</b> (ประหยัด ${ctx.baht(discount)})`;
+    });
+
     app.querySelector('#buy-btn')?.addEventListener('click', async (ev) => {
       if (!ctx.me) {
         location.hash = `#/login?next=${encodeURIComponent(`/course/${course.id}`)}`;
@@ -77,7 +111,10 @@ export async function renderCourse(id, ctx) {
       btn.disabled = true;
       try {
         const order = await ctx.data.createOrder({
-          courseId: course.id, studentName: student, note: app.querySelector('#buy-note')?.value.trim() || '',
+          courseId: course.id,
+          studentName: student,
+          note: app.querySelector('#buy-note')?.value.trim() || '',
+          couponCode: app.querySelector('#buy-coupon')?.value || '',
         });
         location.hash = `#/checkout/${order.id}`;
       } catch (err) {

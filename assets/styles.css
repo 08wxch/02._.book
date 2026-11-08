@@ -3619,3 +3619,25 @@ PY
 .seat-badge, .chip, .badge { white-space: nowrap; }
 .book-table td { vertical-align: middle; }
 .book-table .seat-badge { display: inline-block; }
+
+/* ══ บัตรส่วนลด ═════════════════════════════════════════ */
+.coupon {
+  display: flex; gap: 16px; align-items: stretch; flex-wrap: wrap;
+  border: 1px solid var(--book-line); border-radius: 14px; background: var(--book-card);
+  padding: 16px 18px; margin-bottom: 10px;
+}
+.coupon.is-used { opacity: .62; }
+.coupon__value { display: flex; flex-direction: column; justify-content: center; min-width: 96px; }
+.coupon__value b { font-family: var(--brand-font); font-size: 26px; line-height: 1; }
+.coupon__value span { font-size: 11.5px; color: var(--muted); margin-top: 5px; }
+.coupon__body { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 3px; }
+.coupon__code {
+  font-family: var(--brand-font); font-size: 15px; letter-spacing: .08em;
+  padding: 3px 10px; border: 1px dashed var(--line-strong); border-radius: 8px;
+  align-self: flex-start; background: var(--surface-soft);
+}
+.coupon__state { display: flex; align-items: center; }
+
+.check-line { display: flex; align-items: center; gap: 8px; font-size: 13.5px; margin: 2px 0 8px; cursor: pointer; }
+.check-line input { width: auto; }
+.field-row select[multiple] { padding: 8px; }
