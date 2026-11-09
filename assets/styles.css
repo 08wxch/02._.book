@@ -3863,3 +3863,11 @@ body[data-shell="console"] .site-header { display: none; }
 .line-path.tone-4, .dot.tone-4 { stroke: #c84a3f; } .chart-legend__item i.tone-4 { background: #c84a3f; }
 .line-path.tone-5, .dot.tone-5 { stroke: #7a5cc0; } .chart-legend__item i.tone-5 { background: #7a5cc0; }
 .dot.tone-0, .dot.tone-1, .dot.tone-2, .dot.tone-3, .dot.tone-4, .dot.tone-5 { fill: #fff; stroke-width: 2; }
+
+/* ══ หน้าคอร์สเรียน: แบ่งตามหมวดหมู่ ═══════════════════ */
+.cat-section { margin-bottom: 34px; }
+.cat-section__head {
+  display: flex; align-items: baseline; gap: 10px; margin: 0 0 14px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--book-line);
+}
+.cat-section__head h2 { font-family: var(--brand-font); font-size: 21px; margin: 0; }

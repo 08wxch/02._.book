@@ -182,6 +182,12 @@ export async function listCourses({ all = false } = {}) {
   return courses.map((c) => ({ ...c, sold: Number(sold[c.id] || 0), left: c.seats ? Math.max(0, c.seats - Number(sold[c.id] || 0)) : null }));
 }
 
+export async function listCategories() {
+  const { data, error } = await sb().from('bk_course_categories').select('*').order('sort_order').order('created_at');
+  if (error) throw error;
+  return data || [];
+}
+
 export async function getCourse(id) {
   const { data: row, error } = await sb().from('bk_courses').select('*').eq('id', id).maybeSingle();
   if (error) throw error;
