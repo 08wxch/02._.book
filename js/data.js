@@ -386,8 +386,32 @@ export async function rejectOrder(orderId) {
 }
 
 export async function deleteOrder(orderId) {
-  const { error } = await sb().from('bk_orders').delete().eq('id', orderId);
-  if (error) throw error;
+  const order = await getOrder(orderId).catch(() => null);
+  if (order?.slip_path) {
+    const rm = await sb().storage.from(CONFIG.SLIP_BUCKET).remove([order.slip_path]);
+    if (rm.error) console.warn('ลบไฟล์สลิปไม่สำเร็จ', rm.error.message);
+  }
+  const { data: rows, error } = await sb().from('bk_orders').delete().eq('id', orderId).select('id');
+  if (error) throw new Error(error.message || 'ลบไม่สำเร็จ');
+  if (!rows || !rows.length) throw new Error('ลบไม่สำเร็จ — ไม่พบรายการหรือไม่มีสิทธิ์');
+}
+
+/** ลบประวัติการซื้อทั้งหมดที่จบแล้ว (ยืนยัน/ไม่ผ่าน) — ของผู้ปกครองคนนี้ */
+export async function clearMyOrderHistory() {
+  const rows = await listMyOrders();
+  const done = rows.filter((o) => o.status === 'confirmed' || o.status === 'rejected');
+  if (!done.length) return 0;
+
+  const withSlip = done.filter((o) => o.slip_path).map((o) => o.slip_path);
+  if (withSlip.length) {
+    const rm = await sb().storage.from(CONFIG.SLIP_BUCKET).remove(withSlip);
+    if (rm.error) console.warn('ลบไฟล์สลิปบางส่วนไม่สำเร็จ', rm.error.message);
+  }
+
+  const ids = done.map((o) => o.id);
+  const { data: deleted, error } = await sb().from('bk_orders').delete().in('id', ids).select('id');
+  if (error) throw new Error(error.message || 'ลบประวัติไม่สำเร็จ');
+  return (deleted || []).length;
 }
 
 /* ── accounts (เจ้าของ / ครู) ─────────────────────────── */
