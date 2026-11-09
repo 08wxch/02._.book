@@ -50,13 +50,23 @@ export async function renderHome(_arg, ctx) {
 
   const cards = groupedHtml;
 
+  const settings = ctx.settings || {};
+  const rawTitle = String(settings.home_title || '').trim();
+  const heroLines = rawTitle
+    ? rawTitle.split('|').map((x) => x.trim()).filter(Boolean)
+    : ['เรียนคณิตกับครูตัวต่อตัว', 'พร้อมเห็นพัฒนาการจริงทุกครั้งที่สอบ'];
+  const heroSub = String(settings.home_subtitle || '').trim()
+    || 'เลือกคอร์สที่เหมาะกับน้อง จ่ายผ่านพร้อมเพย์ แล้วครูจะยืนยันที่นั่งให้ — หลังเรียน ผู้ปกครองดูคะแนนและข้อที่ผิดได้จากชุดข้อสอบจริงของ 02._.mock';
+  const liveSteps = Array.isArray(settings.home_steps) && settings.home_steps.length
+    ? settings.home_steps
+    : STEPS.map(([n, title, text]) => ({ title, text }));
+
   return `
   ${isCoursesPage ? '' : `
   <section class="book-hero">
     <div class="wrap">
-      <h1>เรียนคณิตกับครูตัวต่อตัว<br>พร้อมเห็นพัฒนาการจริงทุกครั้งที่สอบ</h1>
-      <p>เลือกคอร์สที่เหมาะกับน้อง จ่ายผ่านพร้อมเพย์ แล้วครูจะยืนยันที่นั่งให้
-         — หลังเรียน ผู้ปกครองดูคะแนนและข้อที่ผิดได้จากชุดข้อสอบจริงของ 02._.mock</p>
+      <h1>${heroLines.map((l) => e(l)).join('<br>')}</h1>
+      <p>${e(heroSub)}</p>
       <div class="hero-cta">
         <a class="btn btn-primary" href="#/courses">ดูคอร์สที่เปิดอยู่</a>
         <a class="btn btn-ghost" href="#/scores">ดูคะแนนนักเรียน</a>
@@ -79,11 +89,11 @@ export async function renderHome(_arg, ctx) {
     <div class="book-card">
       <h2 style="font-family:var(--brand-font);font-size:19px;margin:0 0 16px">ขั้นตอนการจอง</h2>
       <div class="course-grid" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px">
-        ${STEPS.map(([n, title, text]) => `
+        ${liveSteps.map((st, i) => `
           <div>
-            <div class="tiny dim" style="font-family:var(--brand-font);font-size:13px;letter-spacing:.1em">STEP ${n}</div>
-            <div style="font-family:var(--brand-font);font-size:16px;margin:6px 0 4px">${e(title)}</div>
-            <div class="tiny dim" style="line-height:1.6">${e(text)}</div>
+            <div class="tiny dim" style="font-family:var(--brand-font);font-size:13px;letter-spacing:.1em">STEP ${i + 1}</div>
+            <div style="font-family:var(--brand-font);font-size:16px;margin:6px 0 4px">${e(st.title || '')}</div>
+            <div class="tiny dim" style="line-height:1.6">${e(st.text || '')}</div>
           </div>`).join('')}
       </div>
     </div>
