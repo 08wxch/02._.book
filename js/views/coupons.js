@@ -23,13 +23,25 @@ export async function renderCoupons(_arg, ctx) {
   const available = mine.filter((c) => c.status === 'available' && c.active && !isExpired(c));
   const history = mine.filter((c) => !(c.status === 'available' && c.active && !isExpired(c)));
 
-  const stateChip = (c) => (c.status === 'used'
-    ? '<span class="chip chip--mute">ใช้แล้ว</span>'
-    : isExpired(c) ? '<span class="chip chip--bad">หมดอายุ</span>'
-      : '<span class="chip chip--ok">พร้อมใช้</span>');
+  // สถานะคิดจากลิมิตจริง: สิทธิ์รวม / ครั้งต่อคน / วันหมดอายุ
+  const isFull = (c) => Number(c.max_uses || 0) > 0 && Number(c.use_count || 0) >= Number(c.max_uses);
+  const isMineFull = (c) => Number(c.max_per_user || 0) > 0 && Number(c.used_by_me || 0) >= Number(c.max_per_user);
+  const isDone = (c) => isFull(c) || isMineFull(c);
+
+  const stateChip = (c) => (
+    isExpired(c) ? '<span class="chip chip--bad">หมดอายุ</span>'
+    : isFull(c) ? '<span class="chip chip--bad">สิทธิ์เต็ม</span>'
+    : isMineFull(c) ? '<span class="chip chip--mute">ใช้ครบแล้ว</span>'
+    : '<span class="chip chip--ok">พร้อมใช้</span>');
+
+  const usageText = (c) => {
+    const per = Number(c.max_per_user || 0);
+    const mine = Number(c.used_by_me || 0);
+    return per > 0 ? `ใช้แล้ว ${mine}/${per} ครั้ง` : `ใช้แล้ว ${mine} ครั้ง · ไม่จำกัด`;
+  };
 
   const card = (c) => `
-    <article class="coupon-card ${c.status === 'used' ? 'is-used' : ''} ${c.image_url ? 'has-image' : ''}">
+    <article class="coupon-card ${isDone(c) || isExpired(c) ? 'is-used' : ''} ${c.image_url ? 'has-image' : ''}">
       ${c.image_url
         ? `<img class="coupon-card__img" src="${e(c.image_url)}" alt="${e(c.title || c.code)}" loading="lazy">
            <div class="coupon-card__state">${stateChip(c)}</div>`
@@ -40,6 +52,7 @@ export async function renderCoupons(_arg, ctx) {
                <div class="tiny dim">${e(scope(c))}</div>
                ${c.min_amount ? `<div class="tiny dim">ยอดขั้นต่ำ ${ctx.baht(c.min_amount)}</div>` : ''}
                <div class="tiny dim">${Number(c.max_per_user || 0) > 0 ? `ใช้ได้ ${c.max_per_user} ครั้ง/คน` : 'ใช้ได้ไม่จำกัดครั้ง/คน'}</div>
+               <div class="tiny dim">${e(usageText(c))}</div>
                ${c.note ? `<div class="tiny dim">${e(c.note)}</div>` : ''}
                <div class="tiny dim">${c.expires_at ? `ใช้ได้ถึง ${e(thaiDate(c.expires_at))}` : 'ไม่มีวันหมดอายุ'}</div>
              </div>

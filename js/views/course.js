@@ -20,9 +20,18 @@ export async function renderCourse(id, ctx) {
   if (ctx.me?.role === 'parent') {
     try {
       const mine = await ctx.data.listMyCoupons();
-      coupons = (mine || []).filter((c) => c.status === 'available' && c.active
-        && (!c.expires_at || new Date(c.expires_at) > new Date())
-        && ((c.course_ids || []).length === 0 || c.course_ids.includes(course.id)));
+      // ใช้ได้ถ้ายังเหลือสิทธิ์ (ทั้งของฉันและของรวม) + ยังไม่หมดอายุ + ใช้กับคอร์สนี้ได้
+      coupons = (mine || []).filter((c) => {
+        if (!c.active) return false;
+        if (c.expires_at && new Date(c.expires_at) <= new Date()) return false;
+        if ((c.course_ids || []).length && !c.course_ids.includes(course.id)) return false;
+        const perUser = Number(c.max_per_user || 0);
+        const mineUsed = Number(c.used_by_me || 0);
+        if (perUser > 0 && mineUsed >= perUser) return false;
+        const total = Number(c.max_uses || 0);
+        if (total > 0 && Number(c.use_count || 0) >= total) return false;
+        return true;
+      });
     } catch (err) { coupons = []; }
   }
 
