@@ -43,10 +43,12 @@ export async function renderCheckout(orderId, ctx) {
             <div style="font-family:var(--brand-font);font-size:18px">${e(order.course_title)}</div>
             <div class="tiny dim">ผู้เรียน ${e(order.student_name || '—')}</div>
             <div class="tiny dim">สร้างเมื่อ ${e(thaiDateTime(order.created_at))}</div>
-            ${order.coupon_code
-              ? `<div class="tiny" style="margin-top:6px">โค้ดส่วนลด <b>${e(order.coupon_title || order.coupon_code)}</b>
-                   <span class="chip chip--ok">ประหยัด ${ctx.baht(order.discount || 0)}</span></div>`
-              : ''}
+            <div class="tiny" style="margin-top:6px">
+              ${order.coupon_code
+                ? `โค้ดส่วนลด <b>${e(order.coupon_title || order.coupon_code)}</b>
+                   <span class="chip chip--ok">ประหยัด ${ctx.baht(order.discount || 0)}</span>`
+                : '<span class="dim">ไม่ได้ใช้คูปอง</span>'}
+            </div>
           </div>
           <div style="text-align:right">
             <div class="price" style="font-size:26px">${ctx.baht(order.amount)}</div>

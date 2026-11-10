@@ -12,7 +12,7 @@ const GROUPS = [
 
 /** ดาวน์โหลดประวัติการซื้อเป็น CSV (เปิดใน Excel ได้) */
 function downloadOrdersCsv(rows) {
-  const head = ['วันที่', 'คอร์ส', 'ผู้เรียน', 'ยอด (บาท)', 'ส่วนลด', 'โค้ด', 'สถานะ', 'วันยืนยัน'];
+  const head = ['วันที่', 'คอร์ส', 'ผู้เรียน', 'ยอด (บาท)', 'ส่วนลด', 'คูปองที่ใช้', 'สถานะ', 'วันยืนยัน'];
   const statusText = { confirmed: 'ยืนยันแล้ว', rejected: 'ไม่ผ่าน', pending_confirm: 'รอตรวจ', pending_payment: 'ยังไม่จ่าย' };
   const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const lines = [head.map(esc).join(',')];
@@ -23,7 +23,7 @@ function downloadOrdersCsv(rows) {
       o.student_name || '',
       Number(o.amount || 0),
       Number(o.discount || 0),
-      o.coupon_code || '',
+      o.coupon_code ? `${o.coupon_code}${o.coupon_title && o.coupon_title !== o.coupon_code ? ` (${o.coupon_title})` : ''}` : 'ไม่ได้ใช้คูปอง',
       statusText[o.status] || o.status,
       o.confirmed_at ? thaiDateTime(o.confirmed_at) : '',
     ].map(esc).join(','));
@@ -50,7 +50,11 @@ export async function renderCart(_arg, ctx) {
       <div style="min-width:0">
         <div style="font-family:var(--brand-font);font-size:15px">${e(o.course_title)}</div>
         <div class="tiny dim">ผู้เรียน ${e(o.student_name || '—')} · ${e(thaiDateTime(o.created_at))}</div>
-        ${o.coupon_code ? `<div class="tiny dim">ใช้โค้ด ${e(o.coupon_code)} · ประหยัด ${ctx.baht(o.discount || 0)}</div>` : ''}
+        <div class="tiny dim" style="margin-top:2px">
+          ${o.coupon_code
+            ? `คูปอง ${e(o.coupon_title && o.coupon_title !== o.coupon_code ? o.coupon_title : o.coupon_code)} · ประหยัด ${ctx.baht(o.discount || 0)}`
+            : 'ไม่ได้ใช้คูปอง'}
+        </div>
       </div>
       <div style="display:flex;align-items:center;gap:12px">
         <div class="exam-score">${ctx.baht(o.amount)}</div>
