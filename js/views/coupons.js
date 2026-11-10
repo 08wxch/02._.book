@@ -39,6 +39,7 @@ export async function renderCoupons(_arg, ctx) {
                <div class="coupon-card__title">${e(c.title || c.code)}</div>
                <div class="tiny dim">${e(scope(c))}</div>
                ${c.min_amount ? `<div class="tiny dim">ยอดขั้นต่ำ ${ctx.baht(c.min_amount)}</div>` : ''}
+               <div class="tiny dim">${Number(c.max_per_user || 0) > 0 ? `ใช้ได้ ${c.max_per_user} ครั้ง/คน` : 'ใช้ได้ไม่จำกัดครั้ง/คน'}</div>
                ${c.note ? `<div class="tiny dim">${e(c.note)}</div>` : ''}
                <div class="tiny dim">${c.expires_at ? `ใช้ได้ถึง ${e(thaiDate(c.expires_at))}` : 'ไม่มีวันหมดอายุ'}</div>
              </div>

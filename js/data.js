@@ -228,18 +228,41 @@ export async function uploadCover(file) {
 export async function createOrder({ courseId, studentName, note, couponCode }) {
   const uid = getUser()?.id;
   if (!uid) throw new Error('กรุณาเข้าสู่ระบบก่อน');
+
+  const code = couponCode ? String(couponCode).trim() : '';
+  // ตรวจสิทธิ์คูปอง (จำนวนครั้งต่อคน / จำนวนสิทธิ์รวม / วันหมดอายุ / ยอดขั้นต่ำ)
+  if (code) {
+    const check = await sb().rpc('bk_use_coupon', { p_course: courseId, p_code: code });
+    if (check.error) throw new Error(check.error.message || 'ใช้โค้ดไม่สำเร็จ');
+  }
+
   const { data, error } = await sb().rpc('bk_create_order', {
     p_course_id: courseId,
     p_student_name: String(studentName || ''),
     p_note: String(note || ''),
-    p_coupon_code: couponCode ? String(couponCode) : null,
+    p_coupon_code: code || null,
   });
   if (error) throw new Error(error.message || 'สร้างคำสั่งซื้อไม่สำเร็จ');
+
+  // การนับครั้งต่อคน/สิทธิ์รวม ทำในฐานข้อมูลแล้ว (bk_create_order)
   return data;
 }
 
 /* ── คูปองส่วนลด ──────────────────────────────────────── */
 export async function claimCoupon(code) {
+  const { data, error } = await sb().rpc('bk_claim_coupon', { p_code: String(code || '').trim() });
+  if (error) throw new Error(error.message || 'แลกโค้ดไม่สำเร็จ');
+  return data;
+}
+
+/** ตรวจว่าผู้ปกครองใช้โค้ดนี้ได้อีกกี่ครั้ง */
+export async function couponRemaining(code, courseId) {
+  const { data, error } = await sb().rpc('bk_use_coupon', { p_course: courseId, p_code: String(code || '').trim() });
+  if (error) return { ok: false, message: error.message || 'ใช้โค้ดไม่ได้' };
+  return { ok: true, ...data };
+}
+
+export async function unusedClaimCoupon(code) {
   const { data, error } = await sb().rpc('bk_claim_coupon', { p_code: String(code || '').trim() });
   if (error) throw new Error(error.message || 'แลกโค้ดไม่สำเร็จ');
   return data;

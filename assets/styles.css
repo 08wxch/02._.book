@@ -3871,3 +3871,8 @@ body[data-shell="console"] .site-header { display: none; }
   padding-bottom: 10px; border-bottom: 1px solid var(--book-line);
 }
 .cat-section__head h2 { font-family: var(--brand-font); font-size: 21px; margin: 0; }
+
+/* การ์ดคูปอง: ตัวเลขชิดซ้าย กึ่งกลางแนวตั้ง */
+.coupon-card__body { align-items: center; }
+.coupon-card__value { align-self: center; }
+.coupon-card__text { align-self: center; }
