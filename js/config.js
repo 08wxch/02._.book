@@ -7,7 +7,7 @@ export const CONFIG = {
   SLIP_BUCKET: 'bk-slips',
   COVER_BUCKET: 'bk-covers',
   TEACHER_EMAIL: 'pitchonwich@gmail.com',
-  BOOK_NOTIFY_URL: 'https://02math-book-notify.pitchonwich.workers.dev',
+  BOOK_NOTIFY_URL: 'https://notify.02math.com',
   TEACHER_NAME: 'Wich Pitchon',
   CONTACT: {
     line: 'buun - nuum',
