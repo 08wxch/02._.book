@@ -244,8 +244,27 @@ export async function createOrder({ courseId, studentName, note, couponCode }) {
   });
   if (error) throw new Error(error.message || 'สร้างคำสั่งซื้อไม่สำเร็จ');
 
+  // แจ้งเตือนเจ้าของทางอีเมลแบบไม่บล็อกการสั่งซื้อ
+  if (data?.id) notifyOwner(data.id);
+
   // การนับครั้งต่อคน/สิทธิ์รวม ทำในฐานข้อมูลแล้ว (bk_create_order)
   return data;
+}
+
+async function notifyOwner(orderId) {
+  if (!CONFIG.BOOK_NOTIFY_URL) return;
+  try {
+    const { data } = await sb().auth.getSession();
+    const token = data?.session?.access_token;
+    if (!token) return;
+    await fetch(CONFIG.BOOK_NOTIFY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ orderId })
+    });
+  } catch (err) {
+    console.warn('Order email notification failed', err);
+  }
 }
 
 /* ── คูปองส่วนลด ──────────────────────────────────────── */
