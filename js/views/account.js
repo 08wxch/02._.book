@@ -182,7 +182,7 @@ export async function renderExamDetail(_arg, ctx) {
 
   const qs = exam.questions || [];
   const right = qs.filter((q) => isAnswerRight(q, exam.showSolutions)).length;
-  const blank = qs.filter((q) => String(q.answer ?? '') === '').length;
+  const blank = qs.filter((q) => String(q.answer ?? '') === '' && manualScoreOf(q) === null).length;
   const wrong = qs.length - right - blank;
 
   const runMath = () => hydrateMath(document.getElementById('app') || document);
@@ -326,8 +326,18 @@ function lineChart(points, studentId = '') {
 }
 
 /* ── การ์ดคำถาม 1 ข้อ ─────────────────────────────────── */
+function manualScoreOf(q) {
+  if (!q?.manual || q.manual.score === undefined || q.manual.score === null || q.manual.score === '') return null;
+  const score = Number(q.manual.score);
+  return Number.isFinite(score) ? score : null;
+}
+
 function isAnswerRight(q, showSolutions) {
   if (!showSolutions) return false;
+  // A teacher's manual score is final: >0 is correct, 0 is wrong, even for
+  // short/essay answers that do not text-match an answer key.
+  const manual = manualScoreOf(q);
+  if (manual !== null) return manual > 0;
   const ans = String(q.answer ?? '').trim().toLowerCase();
   const correct = String(q.correct ?? '').trim().toLowerCase();
   return Boolean(ans) && Boolean(correct) && ans === correct;
@@ -336,10 +346,12 @@ function isAnswerRight(q, showSolutions) {
 function questionCard(q, i) {
   const ans = String(q.answer ?? '');
   const correct = String(q.correct ?? '');
-  const isRight = ans !== '' && correct !== '' && ans.trim().toLowerCase() === correct.trim().toLowerCase();
-  const blank = ans === '';
+  const manual = manualScoreOf(q) !== null;
+  const isRight = manual
+    ? manualScoreOf(q) > 0
+    : ans !== '' && correct !== '' && ans.trim().toLowerCase() === correct.trim().toLowerCase();
+  const blank = ans === '' && !manual;
   const cls = blank ? 'is-blank' : isRight ? 'is-right' : 'is-wrong';
-  const manual = q.manual && q.manual.score !== undefined && q.manual.score !== null;
   const typeLabel = { mcq: 'เลือกตอบ', truefalse: 'ถูก/ผิด', short: 'ตอบสั้น', essay: 'อัตนัย' }[q.type] || q.type;
 
   const options = Array.isArray(q.options) && q.options.length
